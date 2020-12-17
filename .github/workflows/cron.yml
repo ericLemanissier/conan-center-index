@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - '**' 
+  workflow_dispatch: {}
 
 
 env:
@@ -21,13 +22,15 @@ jobs:
     name: Generate Job Matrix
     runs-on: ubuntu-20.04
     outputs:
-      matrixBSD: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: freebsd
       - uses: actions/setup-python@v1
         with:
           python-version: "3.8"
-      - run: "pip3 install pyyaml requests aiohttp"
+      - run: "pip3 install pyyaml requests aiohttp packaging"
       - name: Generate Job Matrix
         id: set-matrix
         run: |
@@ -45,6 +48,7 @@ jobs:
     runs-on: macos-latest
 
     env:
+      CONAN_MAKE_PROGRAM: "gmake"
       CC: clang
       CXX: clang++
       CONAN_SYSREQUIRES_MODE: enabled
@@ -61,6 +65,6 @@ jobs:
       with:
         envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE'
         usesh: true
-        prepare: pkg install -y cmake conan python3 sudo pkgconf
-        run: conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@
+        prepare: pkg install -y cmake conan python3 sudo pkgconf gmake
+        run: conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@ -b missing
  

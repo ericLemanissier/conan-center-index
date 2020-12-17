@@ -78,6 +78,8 @@ class MatrixGenerator:
                 version = packaging.version.Version("0.0.0")
                 folder = ""
                 async with session.get("https://raw.githubusercontent.com/%s/%s/recipes/%s/config.yml" % (repo, ref, package)) as r:
+                    if r.status  == 404:
+                        return
                     r.raise_for_status()
                     config = yaml.safe_load(await r.text())
                     for v in config["versions"]:
@@ -91,14 +93,15 @@ class MatrixGenerator:
                 if folder:
                     res.append({
                             'package': package,
+                            'version': str(version),
                             'repo': repo,
                             'ref': ref,
                             'folder': folder,
                             'pr': pr,
                         })
             tasks = []
-            for package in  r.json():
-                tasks.append(asyncio.create_task(_add_package(package['name'], '%s/%s' % (self.owner, self.repo), 'master')))
+           # for package in  r.json():
+           #     tasks.append(asyncio.create_task(_add_package(package['name'], '%s/%s' % (self.owner, self.repo), 'master')))
 
             for pr in self.prs.values():
                 pr_number = str(pr["number"])
