@@ -52,6 +52,7 @@ jobs:
       CC: clang
       CXX: clang++
       CONAN_SYSREQUIRES_MODE: enabled
+      MAKE: gmake
     steps:
     - name: Checkout CCI
       uses: actions/checkout@v2
@@ -63,7 +64,7 @@ jobs:
       id: test
       uses: vmactions/freebsd-vm@v0.0.9
       with:
-        envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE'
+        envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE'
         usesh: true
         prepare: pkg install -y cmake py37-pip py37-sqlite3 python3 sudo pkgconf gmake bash perl5 && ln -s /usr/local/bin/perl /usr/bin/perl
         run: |
