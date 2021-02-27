@@ -110,6 +110,9 @@ class MatrixGenerator:
             for pr in self.prs.values():
                 pr_number = str(pr["number"])
                 for package in pr['libs']:
+                    if not pr["head"]["repo"]:
+                        print("no repo detected for pr #%s" % pr_number)
+                        continue
                     tasks.append(asyncio.create_task(_add_package(package, pr["head"]["repo"]["full_name"], pr["head"]["ref"], pr_number)))
 
             await asyncio.gather(*tasks)
