@@ -69,5 +69,5 @@ jobs:
         prepare: pkg install -y cmake py37-pip py37-sqlite3 python3 sudo pkgconf gmake bash perl5 p5-XML-Parser && ln -s /usr/local/bin/perl /usr/bin/perl
         run: |
           pip install conan
-          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@ -b missing
+          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@ -b missing -o b2:toolset=clang
  
