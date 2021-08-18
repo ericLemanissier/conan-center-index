@@ -37,6 +37,8 @@ class MatrixGenerator:
             })
             results = r.json()
             for p in results:
+                if p["number"] in ["6105",]:
+                    continue
                 if "bsd" in p["title"].lower() or "bsd" in p["body"].lower():
                     self.prs[int(p["number"])] = p
             page += 1
