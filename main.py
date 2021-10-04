@@ -37,7 +37,7 @@ class MatrixGenerator:
             })
             results = r.json()
             for p in results:
-                if int(p["number"]) in [6105,6242,]:
+                if int(p["number"]) in [6105,6242,7534,]:
                     print("ignoring pr #%s because it is in deny list" % p["number"])
                     continue
                 if "bsd" in p["title"].lower() or "bsd" in p["body"].lower():
