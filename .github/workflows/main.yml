@@ -33,7 +33,7 @@ jobs:
       - name: install hook
         run: |
           conan config install https://github.com/ericLemanissier/hooks.git --args="-b yamllinter"
-          conan config set ${{ matrix.hook }}
+          conan config set hooks.${{ matrix.hook }}
 
       # Runs a set of commands using the runners shell
       - name: run lint
