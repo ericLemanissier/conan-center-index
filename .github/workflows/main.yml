@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.8"
           
-      - run: "pip3 install conan yamllint"
+      - run: "pip3 install conan yamllint packaging"
 
       # Runs a single command using the runners shell
       - name: install hook
