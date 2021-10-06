@@ -23,7 +23,7 @@ def main(pr):
     github_server_url = os.getenv("GITHUB_SERVER_URL")
     github_repo = os.getenv("GITHUB_REPOSITORY")
 
-    r = session.request("GET", f"{github_server_url}/{github_repo}/pulls/{pr}/diff")
+    r = session.request("GET", f"{github_server_url}/{github_repo}/pull/{pr}.diff")
     r.raise_for_status()
     diff = r.text
     packages = set()
@@ -50,4 +50,4 @@ def main(pr):
 
 if __name__ == "__main__":
     # execute only if run as a script
-    main(sys.argv[0])
+    main(sys.argv[1])
