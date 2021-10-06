@@ -23,7 +23,7 @@ def main(pr):
     github_server_url = os.getenv("GITHUB_SERVER_URL")
     github_repo = os.getenv("GITHUB_REPOSITORY")
 
-    r = session.request("GET", f"{github_server_url}/{github_repo}/pulls/{pr}/diff")
+    r = session.request("GET", f"{github_server_url}/{github_repo}/pull/{pr}.diff")
     r.raise_for_status()
     diff = r.text
     packages = set()
@@ -33,7 +33,7 @@ def main(pr):
     for package in packages:
         version = packaging.version.Version("0.0.0")
         folder = ""
-        with open(os.path.join("recipes", package, "config.yaml"), "r") as file:
+        with open(os.path.join("recipes", package, "config.yml"), "r") as file:
             config = yaml.safe_load(file)
             for v in config["versions"]:
                 try:
@@ -45,9 +45,9 @@ def main(pr):
                     print("Error parsing version %s for package %s in pr %s" % (v, package, pr))
 
         shell = bool(platform.system() != "Windows")
-        command = "conan export recipes/%s %s/%s" % (folder, package, version)
+        command = "conan export %s %s/%s@" % (os.path.join("recipes", package, folder), package, version)
         p = subprocess.run(command, shell=shell, check=True)
 
 if __name__ == "__main__":
     # execute only if run as a script
-    main(sys.argv[0])
+    main(sys.argv[1])
