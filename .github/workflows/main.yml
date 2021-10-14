@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: "3.8"
 
-      - run: "pip3 install conan yamllint packaging pylint astroid"
+      - run: "pip3 install conan yamllint packaging pylint==2.10.2 astroid"
 
       # Runs a single command using the runners shell
       - name: install hook
