@@ -3,7 +3,7 @@ from conans import ConanFile, tools
 from conans.errors import ConanInvalidConfiguration
 
 
-class AGSConan(ConanFile):
+class ConanFile(ConanFile):
     name = "ags"
     description = "The AMD GPU Services (AGS) library provides software developers with the ability to query AMD GPU " \
                   "software and hardware state information that is not normally available through standard operating " \
@@ -32,6 +32,9 @@ class AGSConan(ConanFile):
     @property
     def _supported_archs(self):
         return ["x86_64", "x86"]
+    
+    def configure(self):
+        pass
 
     def configure(self):
         if self.settings.os != "Windows":
