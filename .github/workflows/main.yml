@@ -36,7 +36,7 @@ jobs:
       # Runs a single command using the runners shell
       - name: install hook
         run: |
-          conan config install https://github.com/ericLemanissier/hooks.git --args="-b yamllinter"
+          conan config install https://github.com/conan-io/hooks.git
           conan config set hooks.${{ matrix.hook }}
 
       # Runs a set of commands using the runners shell
