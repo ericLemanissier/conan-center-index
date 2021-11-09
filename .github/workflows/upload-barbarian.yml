@@ -6,6 +6,9 @@ name: Upload to Barbarian
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: "The github ref hosting the package"
+        required: true
       recipe_path:
         description: "The path to the recipe to upload"
         required: true
@@ -22,6 +25,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.ref }}
       - uses: ericLemanissier/barbarian-upload@main
         with:
           recipe_path: ${{ github.event.inputs.recipe_path }}
