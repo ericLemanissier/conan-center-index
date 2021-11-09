@@ -47,7 +47,9 @@ class QtConan(ConanFile):
                    "qtmultimedia", "qtlocation", "qtsensors", "qtconnectivity", "qtserialbus",
                    "qtserialport", "qtwebsockets", "qtwebchannel", "qtwebengine", "qtwebview",
                    "qtremoteobjects"]
-
+    _qtbase_extra_cmake_modules = ["QtPublicDependencyHelpers.cmake", "QtPublicFinalizerHelpers.cmake",
+                                   "QtPublicFindPackageHelpers.cmake", "QtPublicPluginHelpers.cmake",
+                                   "QtPublicTargetHelpers.cmake", "QtPublicWalkLibsHelpers.cmake"]
     generators = "pkg_config", "cmake_find_package", "cmake"
     name = "qt"
     description = "Qt is a cross-platform framework for graphical user interfaces."
@@ -263,7 +265,7 @@ class QtConan(ConanFile):
 
         if "MT" in self.settings.get_safe("compiler.runtime", default="") and self.options.shared:
             raise ConanInvalidConfiguration("Qt cannot be built as shared library with static runtime")
-           
+
         if self.options.get_safe("with_pulseaudio", False) or self.options.get_safe("with_libalsa", False):
             raise ConanInvlidConfiguration("alsa and pulseaudio are not supported (QTBUG-95116), please disable them.")
 
@@ -695,6 +697,9 @@ class QtConan(ConanFile):
         tools.remove_files_by_mask(self.package_folder, "ensure_pro_file.cmake")
         os.remove(os.path.join(self.package_folder, "bin", "qt-cmake-private-install.cmake"))
 
+        for extra_module in self._qtbase_extra_cmake_modules:
+            self.copy(extra_module, dst=os.path.join("lib", "cmake", "Qt6Core"), src=os.path.join(self.package_folder, "lib", "cmake", "Qt6"))
+
         for m in os.listdir(os.path.join(self.package_folder, "lib", "cmake")):
             module = os.path.join(self.package_folder, "lib", "cmake", m, "%sMacros.cmake" % m)
             if not os.path.isfile(module):
@@ -843,6 +848,12 @@ class QtConan(ConanFile):
                 self.cpp_info.components["qtCore"].system_libs.append("synchronization")
             if tools.Version(self.version) >= "6.2.1":
                 self.cpp_info.components["qtCore"].system_libs.append("runtimeobject")
+
+        for extra_module in self._qtbase_extra_cmake_modules:
+            m = os.path.join("lib", "cmake", "Qt6Core", extra_module)
+            self.cpp_info.components["qtCore"].build_modules["cmake_find_package"].append(m)
+            self.cpp_info.components["qtCore"].build_modules["cmake_find_package_multi"].append(m)
+
         self.cpp_info.components["qtPlatform"].names["cmake_find_package"] = "Platform"
         self.cpp_info.components["qtPlatform"].names["cmake_find_package_multi"] = "Platform"
         if tools.Version(self.version) < "6.1.0":
