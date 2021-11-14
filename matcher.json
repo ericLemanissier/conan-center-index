@@ -4,7 +4,7 @@
             "owner": "recipe_linter",
             "pattern": [
                 {
-                    "regexp": "^\\[HOOK\\s-\\srecipe_linter\\.py\\]\\spre_export\\(\\):\\s(.*):(\\d+):(\\d+):\\s(\\S*):\\s(.*)\\s\\((.*)\\)$",
+                    "regexp": "^\\[HOOK\\s-\\srecipe_linter\\.py\\]\\spre_export\\(\\):\\s(.+):(\\d+):(\\d+):\\s(\\S+):\\s(.+)\\s\\((.+)\\)$",
                     "file": 1,
                     "line": 2,
                     "column": 3,
@@ -18,7 +18,7 @@
             "owner": "yaml_linter",
             "pattern": [
                 {
-                    "regexp": "^\\[HOOK\\s-\\syaml_linter\\.py\\]\\spre_export\\(\\):\\s(.*):(\\d+):(\\d+):\\s\\[(\\S*)\\]\\s(.*)\\s\\((.*)\\)$",
+                    "regexp": "^\\[HOOK\\s-\\syaml_linter\\.py\\]\\spre_export\\(\\):\\s(.+):(\\d+):(\\d+):\\s\\[(\\S+)\\]\\s(.+)\\s\\((.+)\\)$",
                     "file": 1,
                     "line": 2,
                     "column": 3,
