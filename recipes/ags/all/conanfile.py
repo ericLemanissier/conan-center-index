@@ -3,6 +3,7 @@ from conans import ConanFile, tools
 from conans.errors import ConanInvalidConfiguration
 
 
+
 class ConanFile(ConanFile):
     name = "ags"
     description = "The AMD GPU Services (AGS) library provides software developers with the ability to query AMD GPU " \
