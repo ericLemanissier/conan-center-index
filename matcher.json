@@ -1,24 +1,10 @@
 {
     "problemMatcher": [
         {
-            "owner": "yamllint",
+            "owner": "linter",
             "pattern": [
                 {
-                    "regexp": "^\\[HOOK - yaml_linter.py\\] pre_export\\(\\): (.*):(\\d+):(\\d+): \\[(.*)\\] (.*) \\((.*)\\)$",
-                    "file": 1,
-                    "line": 2,
-                    "column": 3,
-                    "severity": 4,
-                    "message": 5,
-                    "code": 6
-                }
-            ]
-        },
-        {
-            "owner": "recipe_linter",
-            "pattern": [
-                {
-                    "regexp": "^\\[HOOK - recipe_linter.py\\] pre_export\\(\\): (.*):(\\d+):(\\d+): (.*): (.*) \\((.*)\\)$",
+                    "regexp": "^\\[HOOK - .*.py\\] pre_export\\(\\): (.*):(\\d+):(\\d+): (.*): (.*) \\((.*)\\)$",
                     "file": 1,
                     "line": 2,
                     "column": 3,
