@@ -1,0 +1,34 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Upload to Barbarian
+
+# Controls when the workflow will run
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The github ref hosting the package"
+        required: true
+      recipe_path:
+        description: "The path to the recipe to upload"
+        required: true
+      package_name:
+        description: "The name of the package to upload"
+        required: true
+      package_version:
+        description: "The version number of the package to upload"
+        required: true
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.ref }}
+      - uses: ericLemanissier/barbarian-upload@main
+        with:
+          recipe_path: ${{ github.event.inputs.recipe_path }}
+          package_name: ${{ github.event.inputs.package_name }}
+          package_version: ${{ github.event.inputs.package_version }}

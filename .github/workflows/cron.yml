@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: FreeBSD
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the main branch
@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
       
-    runs-on: macos-latest
+    runs-on: macos-10.15
 
     env:
       CONAN_MAKE_PROGRAM: "gmake"
