@@ -4,7 +4,7 @@
             "owner": "linter",
             "pattern": [
                 {
-                    "regexp": "^\\[HOOK - .*.py\\] pre_export\\(\\): (.*):(\\d+):(\\d+): (\\S*) (.*) \\((.*)\\)$",
+                    "regexp": "^\\[HOOK\\s-\\s.*.py\\]\\spre_export\\(\\):\\s(.*):(\\d+):(\\d+):\\s(\\S*)\\s(.*)\\s\\((.*)\\)$",
                     "file": 1,
                     "line": 2,
                     "column": 3,
