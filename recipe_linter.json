@@ -4,7 +4,7 @@
             "owner": "recipe_linter",
             "pattern": [
                 {
-                    "regexp": "(\\S+):(\\d+):(\\d+):\\s(\\S+):\\s(.+)\\s\\((.+)\\)$",
+                    "regexp": "(\\S+):(\\d+):(\\d+):\\s(\\S+):\\s(.+)\\s\\((\\S+)\\)",
                     "file": 1,
                     "line": 2,
                     "column": 3,
