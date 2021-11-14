@@ -36,6 +36,7 @@ class ConanFile(ConanFile):
     def configure(self):
         pass
 
+    
     def configure(self):
         if self.settings.os != "Windows":
             raise ConanInvalidConfiguration("ags doesn't support OS: {}.".format(self.settings.os))
