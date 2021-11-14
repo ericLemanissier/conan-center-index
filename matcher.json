@@ -1,7 +1,7 @@
 {
     "problemMatcher": [
         {
-            "owner": "linter",
+            "owner": "recipe_linter",
             "pattern": [
                 {
                     "regexp": "^\\[HOOK\\s-\\srecipe_linter\\.py\\]\\spre_export\\(\\):\\s(.*):(\\d+):(\\d+):\\s(\\S*):\\s(.*)\\s\\((.*)\\)$",
@@ -11,7 +11,12 @@
                     "severity": 4,
                     "message": 5,
                     "code": 6
-                },
+                }
+            ]
+        },
+        {
+            "owner": "yaml_linter",
+            "pattern": [
                 {
                     "regexp": "^\\[HOOK\\s-\\syaml_linter\\.py\\]\\spre_export\\(\\):\\s(.*):(\\d+):(\\d+):\\s\\[(\\S*)\\]\\s(.*)\\s\\((.*)\\)$",
                     "file": 1,
