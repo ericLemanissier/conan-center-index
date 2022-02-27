@@ -72,5 +72,5 @@ jobs:
           pip install conan
           conan config install https://github.com/conan-io/hooks.git -sf hooks -tf hooks
           conan config set hooks.conan-center
-          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@ -b missing -o b2:toolset=clang
+          CONAN_HOOK_ERROR_LEVEL=40 conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@ -b missing -o b2:toolset=clang
  
