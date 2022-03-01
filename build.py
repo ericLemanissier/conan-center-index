@@ -79,6 +79,9 @@ for filename in os.scandir():
             continue
         p.check_returncode()
         p = subprocess.run(["conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref])
+        if p.returncode == 1:
+            print("Test of %s failed" % ref)
+            continue
         p.check_returncode()
         p = subprocess.run(["conan", "upload", fullref, "--all"])
         p.check_returncode()
