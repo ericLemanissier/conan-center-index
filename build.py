@@ -42,6 +42,20 @@ for filename in os.scandir():
             if os.path.isfile(conandata_path):
                 os.remove(conandata_path)
             os.rename(conandata_full_path, conandata_path)
+
+        p = subprocess.run(["conan", "info", ref, "--json", "info.json"])
+        if p.returncode == 6:
+            print("ignoring invalid package %s" % ref)
+            continue
+
+        p.check_returncode()
+        with open("info.json", "r") as stream:
+            info = json.load(stream)
+        id = info[0]["id"]
+        if id == "INVALID":
+            print("ignoring invalid package %s" % ref)
+            continue
+
         p = subprocess.run(["conan", "search", ref, "--revisions", "--json", "revision.json"])
         p.check_returncode()
         with open("revision.json", "r") as stream:
@@ -55,28 +69,29 @@ for filename in os.scandir():
 
         fullref = "%s#%s" % (ref, rev)
 
-
         p = subprocess.run(["conan", "search", fullref, "-r", "all", "-q", "os=FreeBSD", "--json", "binaries.json"])
         p.check_returncode()
         with open("binaries.json", "r") as stream:
             binaries = json.load(stream)
         assert not binaries["error"]
         binaries = binaries["results"]
+        print(binaries)
         if len(binaries) > 0:
             binaries = binaries[0]
+            print(binaries)
             binaries = binaries["items"]
+            print(binaries)
             if len(binaries) > 0:
                 binaries = binaries[0]
+                print(binaries)
                 binaries = binaries["packages"]
-                if len(binaries) > 0:
+                print(binaries)
+                if any([p["id"] == id for p in binaries]):
                     continue
         print("no binaries for %s" % fullref)
 
         p = subprocess.run(["conan", "install", fullref, "-b", package])
-        if p.returncode == 6:
-            print("package %s not supported" % ref)
-            continue
-        elif p.returncode == 1:
+        if p.returncode == 1:
             print("error while building %s, ignored" % ref)
             continue
         p.check_returncode()
