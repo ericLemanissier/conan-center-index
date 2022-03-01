@@ -72,7 +72,7 @@ for filename in os.scandir():
 
         fullref = "%s#%s" % (ref, rev)
 
-        p = subprocess.run(["conan", "search", fullref, "-r", "all", "-q", "os=FreeBSD", "--json", "binaries.json"])
+        p = subprocess.run(["conan", "search", fullref, "-r", "all", "--json", "binaries.json"])
         p.check_returncode()
         with open("binaries.json", "r") as stream:
             binaries = json.load(stream)
