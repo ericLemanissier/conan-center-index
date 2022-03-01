@@ -13,6 +13,8 @@ for filename in os.scandir():
     config_file = os.path.join(package, "config.yml")
     if not os.path.isfile(config_file):
         continue
+    if package in ["bacnet-stack"]:
+        continue
     with open(config_file, "r") as stream:
         config = yaml.safe_load(stream)
     for version in config["versions"]:
