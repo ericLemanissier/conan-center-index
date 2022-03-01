@@ -47,8 +47,11 @@ for filename in os.scandir():
         if p.returncode == 6:
             print("ignoring invalid package %s" % ref)
             continue
-
+        elif p.returncode == 1:
+            print("missing binary requirement of %s ?" % ref)
+            continue
         p.check_returncode()
+        
         with open("info.json", "r") as stream:
             info = json.load(stream)
         id = info[0]["id"]
