@@ -48,6 +48,6 @@ jobs:
           pip install conan pyyaml
           conan remote add the_remote $REMOTE_URL
           conan user -p $REMOTE_TOKEN -r the_remote $REMOTE_USER
-          conan remote remove conan-center
+          conan remote remove conancenter
           conan config set general.revisions_enabled=1
           python3 build.py
