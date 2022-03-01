@@ -48,4 +48,5 @@ jobs:
           pip install conan pyyaml
           conan remote add the_remote $REMOTE_URL
           conan user -p $REMOTE_TOKEN -r the_remote $REMOTE_USER
-          python build.py
+          conan remote remove conan-center
+          python3 build.py
