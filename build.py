@@ -13,7 +13,7 @@ for filename in os.scandir():
     config_file = os.path.join(package, "config.yml")
     if not os.path.isfile(config_file):
         continue
-    if package in ["bacnet-stack"]:
+    if package in ["bacnet-stack", "b2"]:
         continue
     with open(config_file, "r") as stream:
         config = yaml.safe_load(stream)
@@ -53,10 +53,16 @@ for filename in os.scandir():
         p.check_returncode()
         
         with open("info.json", "r") as stream:
-            info = json.load(stream)
-        id = info[0]["id"]
-        if id == "INVALID":
-            print("ignoring invalid package %s" % ref)
+            infos = json.load(stream)
+        if any([info["id"] == "INVALID" for info in infos]):
+            print("ingoring invalid package %s" % ref)
+            continue
+        for info in infos:
+            if info["reference"] + "@" == ref:
+                id = info["id"]
+
+        if any(["deprecated" in info for info in infos]):
+            print("skipping %s because it is deprecated" % ref)
             continue
 
         p = subprocess.run(["conan", "search", ref, "--revisions", "--json", "revision.json"])
