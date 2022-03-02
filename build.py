@@ -1,20 +1,15 @@
 import os
 import yaml
 import json
-import subprocess
+import asyncio
 
-os.chdir("CCI")
-os.chdir("recipes")
 
-for filename in os.scandir():
-    if not filename.is_dir():
-        continue
-    package = filename.name
+async def process_ref(package):
     config_file = os.path.join(package, "config.yml")
     if not os.path.isfile(config_file):
-        continue
-    if package in ["bacnet-stack", "b2"]:
-        continue
+        return
+    if package in ["bacnet-stack", "b2", "ncurses"]:
+        return
     with open(config_file, "r") as stream:
         config = yaml.safe_load(stream)
     for version in config["versions"]:
@@ -36,22 +31,28 @@ for filename in os.scandir():
             with open(conandata_path, "w") as stream:
                 yaml.safe_dump(info, default_flow_style=False, stream=stream)
         ref = "%s/%s@" % (package, version)
-        p = subprocess.run(["conan", "export", os.path.join(package, folder), ref])
-        p.check_returncode()
+        p = await asyncio.create_subprocess_exec("conan", "export", os.path.join(package, folder), ref)
+        await p.wait()
+        if p.returncode != 0:
+            print("error during conan export %s %s: %s" % (os.path.join(package, folder), ref, p.returncode))
+            continue
         if os.path.isfile(conandata_full_path):
             if os.path.isfile(conandata_path):
                 os.remove(conandata_path)
             os.rename(conandata_full_path, conandata_path)
 
-        p = subprocess.run(["conan", "info", ref, "--json", "info.json"])
+        p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", "info.json")
+        await p.wait()
         if p.returncode == 6:
             print("ignoring invalid package %s" % ref)
             continue
         elif p.returncode == 1:
             print("missing binary requirement of %s ?" % ref)
             continue
-        p.check_returncode()
-        
+        if p.returncode != 0:
+            print("error during conan info %s: %s" % (ref, p.returncode))
+            continue
+
         with open("info.json", "r") as stream:
             infos = json.load(stream)
         if any([info["id"] == "INVALID" for info in infos]):
@@ -65,8 +66,12 @@ for filename in os.scandir():
             print("skipping %s because it is deprecated" % ref)
             continue
 
-        p = subprocess.run(["conan", "search", ref, "--revisions", "--json", "revision.json"])
-        p.check_returncode()
+        p = await asyncio.create_subprocess_exec("conan", "search", ref, "--revisions", "--json", "revision.json")
+        await p.wait()
+
+        if p.returncode != 0:
+            print("error during conan search %s --revisions --json revision.json: %s" % (ref, p.returncode))
+            continue
         with open("revision.json", "r") as stream:
             revisions = json.load(stream)
         if len(revisions) == 0:
@@ -78,8 +83,12 @@ for filename in os.scandir():
 
         fullref = "%s#%s" % (ref, rev)
 
-        p = subprocess.run(["conan", "search", fullref, "-r", "all", "--json", "binaries.json"])
-        p.check_returncode()
+        p = await asyncio.create_subprocess_exec("conan", "search", fullref, "-r", "all", "--json", "binaries.json")
+        await p.wait()
+
+        if p.returncode != 0:
+            print("error during conan search %s -r all --json binaries.json: %s" % (fullref, p.returncode))
+            continue
         with open("binaries.json", "r") as stream:
             binaries = json.load(stream)
         assert not binaries["error"]
@@ -87,15 +96,40 @@ for filename in os.scandir():
             continue
         print("no binaries for %s" % fullref)
 
-        p = subprocess.run(["conan", "install", fullref, "-b", package])
+        p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package)
+        await p.wait()
         if p.returncode == 1:
             print("error while building %s, ignored" % ref)
             continue
-        p.check_returncode()
-        p = subprocess.run(["conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref])
+
+        if p.returncode != 0:
+            print("error during conan install %s -b %s: %s" % (fullref, package, p.returncode))
+            continue
+        p = await asyncio.create_subprocess_exec("conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref)
+        await p.wait()
         if p.returncode == 1:
             print("Test of %s failed" % ref)
             continue
-        p.check_returncode()
-        p = subprocess.run(["conan", "upload", fullref, "--all"])
-        p.check_returncode()
+        if p.returncode != 0:
+            print("error during conan test %s %s: %s" % (os.path.join(package, folder, "test_package", "conanfile.py"), fullref, p.returncode))
+            continue
+        p = await asyncio.create_subprocess_exec("conan", "upload", fullref, "--all")
+        await p.wait()
+        if p.returncode != 0:
+            print("error during conan upload %s --all: %s" % (fullref, p.returncode))
+            continue
+
+os.chdir("CCI")
+os.chdir("recipes")
+
+import asyncio
+loop=asyncio.get_event_loop()
+
+for filename in os.scandir():
+    if not filename.is_dir():
+        continue
+    package = filename.name
+    loop.create_task(process_ref(package))
+
+
+loop.run_forever()
