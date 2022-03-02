@@ -123,13 +123,15 @@ os.chdir("CCI")
 os.chdir("recipes")
 
 import asyncio
-loop=asyncio.get_event_loop()
 
-for filename in os.scandir():
-    if not filename.is_dir():
-        continue
-    package = filename.name
-    loop.create_task(process_ref(package))
+async def main():
+
+    for filename in os.scandir():
+        if not filename.is_dir():
+            continue
+        package = filename.name
+        asyncio.create_task(process_ref(package))
+        await asyncio.sleep(0)
 
 
-loop.run_forever()
+asyncio.run(main())
