@@ -77,20 +77,8 @@ for filename in os.scandir():
         with open("binaries.json", "r") as stream:
             binaries = json.load(stream)
         assert not binaries["error"]
-        binaries = binaries["results"]
-        print(binaries)
-        if len(binaries) > 0:
-            binaries = binaries[0]
-            print(binaries)
-            binaries = binaries["items"]
-            print(binaries)
-            if len(binaries) > 0:
-                binaries = binaries[0]
-                print(binaries)
-                binaries = binaries["packages"]
-                print(binaries)
-                if any([p["id"] == id for p in binaries]):
-                    continue
+        if any([p["id"] == id for r in binaries["results"] for i in r["items"] for p in i["packages"]]):
+            continue
         print("no binaries for %s" % fullref)
 
         p = subprocess.run(["conan", "install", fullref, "-b", package])
