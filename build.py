@@ -125,13 +125,13 @@ os.chdir("recipes")
 import asyncio
 
 async def main():
-
+    sem = asyncio.Semaphore(5)
     for filename in os.scandir():
         if not filename.is_dir():
             continue
         package = filename.name
-        asyncio.create_task(process_ref(package))
-        await asyncio.sleep(0)
+        async with sem:
+            asyncio.create_task(process_ref(package))
 
 
 asyncio.run(main())
