@@ -2,6 +2,7 @@ import os
 import yaml
 import json
 import asyncio
+import logging
 
 sem = asyncio.Semaphore(5)
 
@@ -12,7 +13,7 @@ async def process_ref(package):
     async with sem:
         config_file = os.path.join(package, "config.yml")
         if not os.path.isfile(config_file):
-            print("no config file for " + package)
+            logging.error("no config file for %s", package)
             return
         with open(config_file, "r") as stream:
             config = yaml.safe_load(stream)
@@ -38,7 +39,7 @@ async def process_ref(package):
             p = await asyncio.create_subprocess_exec("conan", "export", os.path.join(package, folder), ref)
             await p.wait()
             if p.returncode != 0:
-                print("error during conan export %s %s: %s" % (os.path.join(package, folder), ref, p.returncode))
+                logging.error("error during conan export %s %s: %s", os.path.join(package, folder), ref, p.returncode)
                 continue
             if os.path.isfile(conandata_full_path):
                 if os.path.isfile(conandata_path):
@@ -49,31 +50,31 @@ async def process_ref(package):
             p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file)
             await p.wait()
             if p.returncode == 6:
-                print("ignoring invalid package %s" % ref)
+                logging.error("ignoring invalid package %s", ref)
                 continue
             elif p.returncode == 1:
-                print("missing binary requirement of %s ?" % ref)
+                logging.error("missing binary requirement of %s ?", ref)
                 continue
             if p.returncode != 0:
-                print("error during conan info %s: %s" % (ref, p.returncode))
+                logging.error("error during conan info %s: %s", ref, p.returncode)
                 continue
 
             with open(info_file, "r") as stream:
                 infos = json.load(stream)
             os.remove(info_file)
             if any([info["id"] == "INVALID" for info in infos]):
-                print("ingoring invalid package %s" % ref)
+                logging.error("ingoring invalid package %s", ref)
                 continue
             id = None
             for info in infos:
                 if info["reference"] + "@" == ref:
                     id = info["id"]
             if not id:
-                print("could not find %s in %s" % (ref, infos))
+                logging.error("could not find %s in %s",ref, infos)
                 exit(-3)
 
             if any(["deprecated" in info for info in infos]):
-                print("skipping %s because it is deprecated" % ref)
+                logging.error("skipping %s because it is deprecated", ref)
                 continue
 
             revision_file = os.path.join(package, "revision.json")
@@ -81,7 +82,7 @@ async def process_ref(package):
             await p.wait()
 
             if p.returncode != 0:
-                print("error during conan search %s --revisions --json %s: %s" % (ref, revision_file, p.returncode))
+                logging.error("error during conan search %s --revisions --json %s: %s", ref, revision_file, p.returncode)
                 continue
             with open(revision_file, "r") as stream:
                 revisions = json.load(stream)
@@ -91,7 +92,7 @@ async def process_ref(package):
             elif len(revisions) == 1:
                 rev = revisions[0]["revision"]
             else:
-                print("unexpected revisions for %s: %s" % (ref, revisions))
+                logging.error("unexpected revisions for %s: %s", ref, revisions)
 
             fullref = "%s#%s" % (ref, rev)
 
@@ -100,7 +101,7 @@ async def process_ref(package):
             await p.wait()
 
             if p.returncode != 0:
-                print("error during conan search %s -r all --json %s: %s" % (fullref, binaries_file, p.returncode))
+                logging.error("error during conan search %s -r all --json %s: %s", fullref, binaries_file, p.returncode)
                 continue
             with open(binaries_file, "r") as stream:
                 binaries = json.load(stream)
@@ -108,29 +109,29 @@ async def process_ref(package):
             assert not binaries["error"]
             if any([p["id"] == id for r in binaries["results"] for i in r["items"] for p in i["packages"]]):
                 continue
-            print("no binaries for %s" % fullref)
+            logging.error("no binaries for %s", fullref)
 
             p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package)
             await p.wait()
             if p.returncode == 1:
-                print("error while building %s, ignored" % ref)
+                logging.error("error while building %s, ignored", ref)
                 continue
 
             if p.returncode != 0:
-                print("error during conan install %s -b %s: %s" % (fullref, package, p.returncode))
+                logging.error("error during conan install %s -b %s: %s", fullref, package, p.returncode)
                 continue
             p = await asyncio.create_subprocess_exec("conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref)
             await p.wait()
             if p.returncode == 1:
-                print("Test of %s failed" % ref)
+                logging.error("Test of %s failed", ref)
                 continue
             if p.returncode != 0:
-                print("error during conan test %s %s: %s" % (os.path.join(package, folder, "test_package", "conanfile.py"), fullref, p.returncode))
+                logging.error("error during conan test %s %s: %s", os.path.join(package, folder, "test_package", "conanfile.py"), fullref, p.returncode)
                 continue
             p = await asyncio.create_subprocess_exec("conan", "upload", fullref, "--all")
             await p.wait()
             if p.returncode != 0:
-                print("error during conan upload %s --all: %s" % (fullref, p.returncode))
+                logging.error("error during conan upload %s --all: %s", fullref, p.returncode)
                 continue
 
 os.chdir("CCI")
