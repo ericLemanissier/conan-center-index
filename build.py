@@ -6,14 +6,14 @@ import asyncio
 sem = asyncio.Semaphore(5)
 
 async def process_ref(package):
-    config_file = os.path.join(package, "config.yml")
-    if not os.path.isfile(config_file):
-        print("no config file for " + package)
-        return
     if package in ["bacnet-stack", "b2", "ncurses"]:
         return
     global sem
     async with sem:
+        config_file = os.path.join(package, "config.yml")
+        if not os.path.isfile(config_file):
+            print("no config file for " + package)
+            return
         with open(config_file, "r") as stream:
             config = yaml.safe_load(stream)
         for version in config["versions"]:
@@ -45,7 +45,8 @@ async def process_ref(package):
                     os.remove(conandata_path)
                 os.rename(conandata_full_path, conandata_path)
 
-            p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", "info.json")
+            info_file = os.path.join(package, "info.json")
+            p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file)
             await p.wait()
             if p.returncode == 6:
                 print("ignoring invalid package %s" % ref)
@@ -57,27 +58,34 @@ async def process_ref(package):
                 print("error during conan info %s: %s" % (ref, p.returncode))
                 continue
 
-            with open("info.json", "r") as stream:
+            with open(info_file, "r") as stream:
                 infos = json.load(stream)
+            os.remove(info_file)
             if any([info["id"] == "INVALID" for info in infos]):
                 print("ingoring invalid package %s" % ref)
                 continue
+            id = None
             for info in infos:
                 if info["reference"] + "@" == ref:
                     id = info["id"]
+            if not id:
+                print("could not find %s in %s" % (ref, infos))
+                exit(-3)
 
             if any(["deprecated" in info for info in infos]):
                 print("skipping %s because it is deprecated" % ref)
                 continue
 
-            p = await asyncio.create_subprocess_exec("conan", "search", ref, "--revisions", "--json", "revision.json")
+            revision_file = os.path.join(package, "revision.json")
+            p = await asyncio.create_subprocess_exec("conan", "search", ref, "--revisions", "--json", revision_file)
             await p.wait()
 
             if p.returncode != 0:
-                print("error during conan search %s --revisions --json revision.json: %s" % (ref, p.returncode))
+                print("error during conan search %s --revisions --json %s: %s" % (ref, revision_file, p.returncode))
                 continue
-            with open("revision.json", "r") as stream:
+            with open(revision_file, "r") as stream:
                 revisions = json.load(stream)
+            os.remove(revision_file)
             if len(revisions) == 0:
                 rev = ""
             elif len(revisions) == 1:
@@ -87,14 +95,16 @@ async def process_ref(package):
 
             fullref = "%s#%s" % (ref, rev)
 
-            p = await asyncio.create_subprocess_exec("conan", "search", fullref, "-r", "all", "--json", "binaries.json")
+            binaries_file = os.path.join(package, "binaries.json")
+            p = await asyncio.create_subprocess_exec("conan", "search", fullref, "-r", "all", "--json", binaries_file)
             await p.wait()
 
             if p.returncode != 0:
-                print("error during conan search %s -r all --json binaries.json: %s" % (fullref, p.returncode))
+                print("error during conan search %s -r all --json %s: %s" % (fullref, binaries_file, p.returncode))
                 continue
-            with open("binaries.json", "r") as stream:
+            with open(binaries_file, "r") as stream:
                 binaries = json.load(stream)
+            os.remove(binaries_file)
             assert not binaries["error"]
             if any([p["id"] == id for r in binaries["results"] for i in r["items"] for p in i["packages"]]):
                 continue
