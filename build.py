@@ -50,7 +50,7 @@ async def process_ref(package):
             p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file)
             await p.wait()
             if p.returncode == 6:
-                logging.error("ignoring invalid package %s", ref)
+                logging.info("ignoring invalid package %s", ref)
                 continue
             elif p.returncode == 1:
                 logging.error("missing binary requirement of %s ?", ref)
@@ -63,7 +63,7 @@ async def process_ref(package):
                 infos = json.load(stream)
             os.remove(info_file)
             if any([info["id"] == "INVALID" for info in infos]):
-                logging.error("ingoring invalid package %s", ref)
+                logging.info("ingoring invalid package %s", ref)
                 continue
             id = None
             for info in infos:
@@ -74,7 +74,7 @@ async def process_ref(package):
                 exit(-3)
 
             if any(["deprecated" in info for info in infos]):
-                logging.error("skipping %s because it is deprecated", ref)
+                logging.info("skipping %s because it is deprecated", ref)
                 continue
 
             revision_file = os.path.join(package, "revision.json")
@@ -109,7 +109,7 @@ async def process_ref(package):
             assert not binaries["error"]
             if any([p["id"] == id for r in binaries["results"] for i in r["items"] for p in i["packages"]]):
                 continue
-            logging.error("no binaries for %s", fullref)
+            logging.info("no binaries for %s", fullref)
 
             p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package)
             await p.wait()
