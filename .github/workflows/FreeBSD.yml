@@ -20,6 +20,9 @@ env:
 jobs:  
   FreeBSD:      
     runs-on: macos-10.15
+    strategy:
+      matrix:
+        regex: [0,1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z]
 
     env:
       CONAN_MAKE_PROGRAM: "gmake"
@@ -50,4 +53,4 @@ jobs:
           conan user -p $REMOTE_TOKEN -r the_remote $REMOTE_USER
           conan remote remove conancenter
           conan config set general.revisions_enabled=1
-          python3 build.py
+          python3 build.py ${{ matrix.regex }}
