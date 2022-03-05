@@ -6,7 +6,7 @@ import logging
 import sys
 import re
 
-sem = asyncio.Semaphore(5)
+sem = asyncio.Semaphore(1)
 
 async def process_ref(package):
     if package in ["bacnet-stack", "b2", "ncurses"]:
@@ -140,7 +140,7 @@ if __name__ == "__main__":
     os.chdir("CCI")
     os.chdir("recipes")
     loop = asyncio.get_event_loop()
-    pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else "*")
-    loop.run_until_complete(asyncio.gather(*[asyncio.create_task(process_ref(filename.name)) for filename in os.scandir() if filename.is_dir() and pattern.match(filename)]))
-
-
+    pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
+    async def main():
+        await asyncio.gather(*[asyncio.create_task(process_ref(filename.name)) for filename in os.scandir() if filename.is_dir() and pattern.match(filename.name)])
+    loop.run_until_complete(main())
