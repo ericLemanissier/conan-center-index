@@ -3,6 +3,8 @@ import yaml
 import json
 import asyncio
 import logging
+import sys
+import re
 
 sem = asyncio.Semaphore(5)
 
@@ -134,14 +136,11 @@ async def process_ref(package):
                 logging.error("error during conan upload %s --all: %s", fullref, p.returncode)
                 continue
 
-os.chdir("CCI")
-os.chdir("recipes")
+if __name__ == "__main__":
+    os.chdir("CCI")
+    os.chdir("recipes")
+    loop = asyncio.get_event_loop()
+    pattern = re.compile(sys.argv[1]) if len(sys.argv) >= 2 else "*")
+    loop.run_until_complete(asyncio.gather(*[asyncio.create_task(process_ref(filename.name)) for filename in os.scandir() if filename.is_dir() and pattern.match(filename)]))
 
-import asyncio
 
-async def main():
-    await asyncio.gather(*[asyncio.create_task(process_ref(filename.name)) for filename in os.scandir() if filename.is_dir()])
-
-
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
