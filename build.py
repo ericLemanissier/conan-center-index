@@ -113,7 +113,7 @@ async def process_ref(package):
                 continue
             logging.info("no binaries for %s", fullref)
 
-            p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package)
+            p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package, "-o", "glib:with_elf=False")
             await p.wait()
             if p.returncode == 1:
                 logging.error("error while building %s, ignored", ref)
@@ -122,7 +122,7 @@ async def process_ref(package):
             if p.returncode != 0:
                 logging.error("error during conan install %s -b %s: %s", fullref, package, p.returncode)
                 continue
-            p = await asyncio.create_subprocess_exec("conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref)
+            p = await asyncio.create_subprocess_exec("conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref, "-o", "glib:with_elf=False")
             await p.wait()
             if p.returncode == 1:
                 logging.error("Test of %s failed", ref)
