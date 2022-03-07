@@ -49,7 +49,7 @@ async def process_ref(package):
                 os.rename(conandata_full_path, conandata_path)
 
             info_file = os.path.join(package, "info.json")
-            p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file)
+            p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file, "-o", "glib:with_elf=False")
             await p.wait()
             if p.returncode == 6:
                 logging.info("ignoring invalid package %s", ref)
