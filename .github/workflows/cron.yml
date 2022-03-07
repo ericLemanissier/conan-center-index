@@ -67,7 +67,7 @@ jobs:
       with:
         envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE'
         usesh: true
-        prepare: pkg install -y cmake py38-pip py38-sqlite3 python3 sudo pkgconf gmake bash perl5 p5-XML-Parser git && ln -s /usr/local/bin/perl /usr/bin/perl && pkg delete -y libelf
+        prepare: pkg install -y cmake py38-pip py38-sqlite3 python3 sudo pkgconf gmake bash perl5 p5-XML-Parser git && ln -s /usr/local/bin/perl /usr/bin/perl && pkg delete -y elfutils
         run: |
           pip install conan
           conan config install https://github.com/conan-io/hooks.git -sf hooks -tf hooks

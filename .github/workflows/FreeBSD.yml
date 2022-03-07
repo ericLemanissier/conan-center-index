@@ -49,7 +49,7 @@ jobs:
       with:
         envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE REMOTE_URL REMOTE_TOKEN REMOTE_USER'
         usesh: true
-        prepare: pkg install -y cmake py38-pip py38-sqlite3 python python3 sudo pkgconf gmake bash perl5 p5-XML-Parser git && ln -s /usr/local/bin/perl /usr/bin/perl && pkg delete -y libelf
+        prepare: pkg install -y cmake py38-pip py38-sqlite3 python python3 sudo pkgconf gmake bash perl5 p5-XML-Parser git && ln -s /usr/local/bin/perl /usr/bin/perl && pkg delete -y elfutils
         run: |
           pip install conan pyyaml
           conan remote add the_remote $REMOTE_URL
