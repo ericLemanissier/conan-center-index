@@ -9,7 +9,7 @@ import re
 sem = asyncio.Semaphore(1)
 
 async def process_ref(package):
-    if package in ["bacnet-stack", "b2", "ncurses"]:
+    if package in ["bacnet-stack", "b2", "ncurses", "geotrans"]:
         return
     global sem
     async with sem:
