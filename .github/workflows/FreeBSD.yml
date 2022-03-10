@@ -56,4 +56,5 @@ jobs:
           conan user -p $REMOTE_TOKEN -r the_remote $REMOTE_USER
           conan remote remove conancenter
           conan config set general.revisions_enabled=1
+          conan profile new ~/.conan/profiles/default --detect --force
           python3 build.py ${{ matrix.regex }}
