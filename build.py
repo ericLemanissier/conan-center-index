@@ -5,6 +5,7 @@ import asyncio
 import logging
 import sys
 import re
+import subprocess
 
 sem = asyncio.Semaphore(1)
 
@@ -140,11 +141,7 @@ if __name__ == "__main__":
     os.chdir("CCI")
     os.chdir("recipes")
      
-    p = await asyncio.create_subprocess_exec("conan", "profile", "update", "options.glib:with_elf=False", "default")
-    await p.wait()
-    if p.returncode != 0:
-        logging.error("error during conan profile update: %s", p.returncode)
-        return
+    subprocess.run(["conan", "profile", "update", "options.glib:with_elf=False", "default"], check=True)
                 
     loop = asyncio.get_event_loop()
     pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
