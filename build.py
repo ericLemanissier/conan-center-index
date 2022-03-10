@@ -49,7 +49,7 @@ async def process_ref(package):
                 os.rename(conandata_full_path, conandata_path)
 
             info_file = os.path.join(package, "info.json")
-            p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file, "-o", "glib:with_elf=False")
+            p = await asyncio.create_subprocess_exec("conan", "info", ref, "--json", info_file)
             await p.wait()
             if p.returncode == 6:
                 logging.info("ignoring invalid package %s", ref)
@@ -113,7 +113,7 @@ async def process_ref(package):
                 continue
             logging.info("no binaries for %s", fullref)
 
-            p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package, "-o", "glib:with_elf=False")
+            p = await asyncio.create_subprocess_exec("conan", "install", fullref, "-b", package)
             await p.wait()
             if p.returncode == 1:
                 logging.error("error while building %s, ignored", ref)
@@ -122,7 +122,7 @@ async def process_ref(package):
             if p.returncode != 0:
                 logging.error("error during conan install %s -b %s: %s", fullref, package, p.returncode)
                 continue
-            p = await asyncio.create_subprocess_exec("conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref, "-o", "glib:with_elf=False")
+            p = await asyncio.create_subprocess_exec("conan", "test", os.path.join(package, folder, "test_package", "conanfile.py"), fullref)
             await p.wait()
             if p.returncode == 1:
                 logging.error("Test of %s failed", ref)
@@ -139,6 +139,13 @@ async def process_ref(package):
 if __name__ == "__main__":
     os.chdir("CCI")
     os.chdir("recipes")
+     
+    p = await asyncio.create_subprocess_exec("conan", "profile", "update", "options.glib:with_elf=False", "default")
+    await p.wait()
+    if p.returncode != 0:
+        logging.error("error during conan profile update: %s", p.returncode)
+        return
+                
     loop = asyncio.get_event_loop()
     pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
     async def main():
