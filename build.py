@@ -20,6 +20,12 @@ async def process_ref(package):
             return
         with open(config_file, "r") as stream:
             config = yaml.safe_load(stream)
+
+        p = await asyncio.create_subprocess_exec("conan", "remove", "--outdated", "-r", "all", "%s/*" % package)
+        await p.wait()
+        if p.returncode != 0:
+            logging.error("error during conan remove %s: %s", package, p.returncode)
+        
         for version in config["versions"]:
             folder = config["versions"][version]["folder"]
             conandata_path = os.path.join(os.path.join(package, folder), "conandata.yml")
