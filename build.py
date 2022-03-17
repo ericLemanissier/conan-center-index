@@ -146,8 +146,6 @@ async def process_ref(package):
 if __name__ == "__main__":
     os.chdir("CCI")
     os.chdir("recipes")
-     
-    subprocess.run(["conan", "profile", "update", "options.glib:with_elf=False", "default"], check=True)
                 
     loop = asyncio.get_event_loop()
     pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
