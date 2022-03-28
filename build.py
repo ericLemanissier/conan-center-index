@@ -5,13 +5,21 @@ import asyncio
 import logging
 import sys
 import re
-import subprocess
 
 sem = asyncio.Semaphore(1)
 
 async def process_ref(package):
-    if package in ["bacnet-stack", "b2", "ncurses", "geotrans"]:
-        return
+
+    package_restrictions = {
+        "bacnet-stack":[],
+        "b2":[],
+        "ncurses":[],
+        "geotrans":[],
+        "icu": ["70.1"],
+        "cmake": ["3.22.3"],
+        "glib": ["2.72.0"],
+        "cppcheck": ["2.7.3"]
+    }
     global sem
     async with sem:
         config_file = os.path.join(package, "config.yml")
@@ -25,8 +33,11 @@ async def process_ref(package):
         await p.wait()
         if p.returncode != 0:
             logging.error("error during conan remove %s: %s", package, p.returncode)
-        
+
         for version in config["versions"]:
+            if package in package_restrictions and version not in package_restrictions[package]:
+                logging.info("skipping %s/%s", package, version)
+                continue
             folder = config["versions"][version]["folder"]
             conandata_path = os.path.join(os.path.join(package, folder), "conandata.yml")
             conandata_full_path = os.path.join(os.path.join(package, folder), "conandata_full.yml")
@@ -146,7 +157,7 @@ async def process_ref(package):
 if __name__ == "__main__":
     os.chdir("CCI")
     os.chdir("recipes")
-                
+
     loop = asyncio.get_event_loop()
     pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
     async def main():
