@@ -29,7 +29,7 @@ async def process_ref(package):
         with open(config_file, "r") as stream:
             config = yaml.safe_load(stream)
 
-        p = await asyncio.create_subprocess_exec("conan", "remove", "--outdated", "-r", "all", "%s/*" % package)
+        p = await asyncio.create_subprocess_exec("conan", "remove", "--outdated", "%s/*" % package)
         await p.wait()
         if p.returncode != 0:
             logging.error("error during conan remove %s: %s", package, p.returncode)
