@@ -18,7 +18,8 @@ async def process_ref(package):
         "icu": ["70.1"],
         "cmake": ["3.22.3"],
         "glib": ["2.72.0"],
-        "cppcheck": ["2.7.3"]
+        "cppcheck": ["2.7.3"],
+        "proj": ["9.0.0"],
     }
     global sem
     async with sem:
