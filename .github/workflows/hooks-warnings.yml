@@ -11,8 +11,8 @@ jobs:
         with:
           script: |
             console.log(context)
-            console.log(context.comment)
-            console.log(context.comment.body)
+            console.log(context.payload.comment)
+            console.log(context.payload.comment.body)
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
