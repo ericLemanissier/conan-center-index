@@ -10,10 +10,12 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            print(context.comment.body)
-            # github.rest.issues.createComment({
-            #   issue_number: context.issue.number,
-            #   owner: context.repo.owner,
-            #   repo: context.repo.repo,
-            #   body: '👋 Thanks for reporting!'
-            # })
+            console.log(context)
+            console.log(context.comment)
+            console.log(context.comment.body)
+            /* github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Thanks for reporting!'
+            })/*
