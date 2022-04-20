@@ -12,8 +12,12 @@ jobs:
           script: |
             const regexpCoordinates = /\[All logs\]\((?<url>.*)\)/g;
             for (const match of context.payload.comment.body.matchAll(regexpCoordinates))
-            {
-              console.log(match.groups.url);
+            {            
+              prefix = "https://c3i.jfrog.io/c3i/misc/summary.html?json="
+              if(!match.groups.url.startsWith(prefix))
+                 continue;
+              url = match.groups.url.slice(prefix.length)
+              console.log(url);
             }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
