@@ -10,9 +10,10 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
+            warnings_map = new Map()
             const regexpCoordinates = /\[All logs\]\((?<url>https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))\)/g;
             for (const match of context.payload.comment.body.matchAll(regexpCoordinates))
-            {            
+            {
               prefix = "https://c3i.jfrog.io/c3i/misc/summary.html?json="
               if(!match.groups.url.startsWith(prefix))
                  continue;
@@ -23,7 +24,6 @@ jobs:
               });
               for (const job of result.data)
               {
-                console.log(job)
                 if (job.build == null)
                   continue;
                 const log = await github.request({
@@ -31,15 +31,35 @@ jobs:
                   url: job.build,
                 });
                 warnings = log.data.split("\n").filter(line => line.startsWith("[HOOK - conan-center.py]") && line.includes(" WARN: "))
+                if(warnings.length == 0)
+                  continue
+                if(!warnings_map.has(job.reference)
+                  warnings_map.set(job.reference, new Set())
                 for(const warning of warnings)
                 {
-                  console.log(warning)
+                  warnings_map.get(job.reference).add(warning)
                 }
-              }            
+              }
             }
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '👋 Thanks for reporting!'
-            })
+            if(warnings_map.size > 0)
+            {
+              comment = "<details>\n"
+              comment += "<summary>Hooks produced the following warnings</summary>\n"
+              for (const [ref, warnings] of warnings_map)
+              {
+                comment += "<details>\n"
+                comment += "<summary>" + ref + "</summary>\n"
+                for(const warning of warnings)
+                {
+                  comment += warning + "\n"
+                }
+                comment += "</details>\n"
+              }
+              comment += "</details>\n"
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              })
+            }
