@@ -47,7 +47,8 @@ jobs:
               {
                 comment += "<details>\n"
                 comment += "<summary>" + ref + "</summary>\n\n```\n"
-                comment += warnings.join("\n")
+                for(const warning of warnings)
+                  comment += warning + "\n"
                 comment += "\n```\n</details>\n"
               }
               comment += "</details>\n"
