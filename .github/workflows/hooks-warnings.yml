@@ -18,6 +18,11 @@ jobs:
                  continue;
               url = match.groups.url.slice(prefix.length)
               console.log(url);
+              const result = await request({
+                method: "GET",
+                url: url,
+              });
+              console.log(result.data)
             }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
