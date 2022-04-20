@@ -28,7 +28,11 @@ jobs:
                   baseUrl: "https://c3i.jfrog.io/c3i/misc/",
                   url: job.build,
                 });
-                console.log(log.data)
+                warnings = log.data.split("\n").filter(line => line.startsWith("[HOOK - conan-center.py]") && line.includes(" WARN: "))
+                for(const warning of warnings)
+                {
+                  console.log(warning)
+                }
               }            
             }
             github.rest.issues.createComment({
