@@ -10,9 +10,11 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            console.log(context)
-            console.log(context.payload.comment)
-            console.log(context.payload.comment.body)
+            const regexpCoordinates = /\[All logs\]\((?<url>.*)\)/g;
+            for (const match of context.payload.comment.body.matchAll(regexpCoordinates))
+            {
+              console.log(match.groups.url);
+            }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
