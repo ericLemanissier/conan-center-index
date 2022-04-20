@@ -21,9 +21,11 @@ jobs:
               const result = await github.request({
                 url: url,
               });
-              console.log(result.data)
               for (const job of result.data)
               {
+                console.log(job)
+                if (job.build == null)
+                  continue;
                 const log = await github.request({
                   baseUrl: "https://c3i.jfrog.io/c3i/misc/",
                   url: job.build,
