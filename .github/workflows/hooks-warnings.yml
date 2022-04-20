@@ -29,14 +29,15 @@ jobs:
                   baseUrl: "https://c3i.jfrog.io/c3i/misc/",
                   url: job.build,
                 });
-                warnings = log.data.split("\n").filter(line => line.startsWith("[HOOK - conan-center.py]") && line.includes(" WARN: "))
+                prefix = "[HOOK - conan-center.py] "
+                warnings = log.data.split("\n").filter(line => line.startsWith(prefix) && line.includes(" WARN: "))
                 if(warnings.length == 0)
                   continue
                 if(!warnings_map.has(job.reference))
                   warnings_map.set(job.reference, new Set())
                 for(const warning of warnings)
                 {
-                  warnings_map.get(job.reference).add(warning)
+                  warnings_map.get(job.reference).add(warning.slice(prefix.length))
                 }
               }
             }
