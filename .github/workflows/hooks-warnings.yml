@@ -44,16 +44,16 @@ jobs:
             if(warnings_map.size > 0)
             {
               comment = "<details>\n"
-              comment += "<summary>Hooks produced the following warnings</summary>\n"
+              comment += "<summary>Hooks produced the following warnings</summary>\n\n"
               for (const [ref, warnings] of warnings_map)
               {
                 comment += "<details>\n"
-                comment += "<summary>" + ref + "</summary>\n"
+                comment += "<summary>" + ref + "</summary>\n\n```\n"
                 for(const warning of warnings)
                 {
                   comment += warning + "\n"
                 }
-                comment += "</details>\n"
+                comment += "\n```</details>\n"
               }
               comment += "</details>\n"
               github.rest.issues.createComment({
