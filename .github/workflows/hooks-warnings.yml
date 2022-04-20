@@ -10,7 +10,7 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            const regexpCoordinates = /\[All logs\]\((?<url>.*)\)/g;
+            const regexpCoordinates = /\[All logs\]\((?<url>https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))\)/g;
             for (const match of context.payload.comment.body.matchAll(regexpCoordinates))
             {            
               prefix = "https://c3i.jfrog.io/c3i/misc/summary.html?json="
