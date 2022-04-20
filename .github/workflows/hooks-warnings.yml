@@ -18,7 +18,6 @@ jobs:
               if(!match.groups.url.startsWith(prefix))
                  continue;
               url = match.groups.url.slice(prefix.length)
-              console.log(url);
               const result = await github.request({
                 url: url,
               });
@@ -53,7 +52,7 @@ jobs:
                 {
                   comment += warning + "\n"
                 }
-                comment += "\n```</details>\n"
+                comment += "\n```\n</details>\n"
               }
               comment += "</details>\n"
               github.rest.issues.createComment({
