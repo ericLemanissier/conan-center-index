@@ -36,7 +36,9 @@ jobs:
                 if(!warnings_map.has(job.reference))
                   warnings_map.set(job.reference, new Set())
                 for(const warning of warnings)
-                  warnings_map.get(job.reference).add(warning.slice(prefix.length))
+                  msg = warning.slice(prefix.length)
+                  warnings_map.get(job.reference).add(msg)
+                  core.warning(msg)
               }
             }
             if(warnings_map.size > 0)
