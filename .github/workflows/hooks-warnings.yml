@@ -18,8 +18,7 @@ jobs:
                  continue;
               url = match.groups.url.slice(prefix.length)
               console.log(url);
-              const result = await request({
-                method: "GET",
+              const result = await github.request({
                 url: url,
               });
               console.log(result.data)
