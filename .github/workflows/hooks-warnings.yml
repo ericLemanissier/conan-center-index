@@ -33,7 +33,7 @@ jobs:
                 warnings = log.data.split("\n").filter(line => line.startsWith("[HOOK - conan-center.py]") && line.includes(" WARN: "))
                 if(warnings.length == 0)
                   continue
-                if(!warnings_map.has(job.reference)
+                if(!warnings_map.has(job.reference))
                   warnings_map.set(job.reference, new Set())
                 for(const warning of warnings)
                 {
