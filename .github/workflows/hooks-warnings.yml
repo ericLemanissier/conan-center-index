@@ -51,7 +51,7 @@ jobs:
               const shaMatch = context.payload.comment.body.match(shaRegex)
               if(shaMatch)
               {
-                comment += " for commit " + mashaMatchtch.groups.sha
+                comment += " for commit " + shaMatch.groups.sha
               }
               comment += "</summary>\n\n"
               for (const [ref, warnings] of warnings_map)
