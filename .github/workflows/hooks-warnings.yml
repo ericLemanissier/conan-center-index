@@ -48,7 +48,7 @@ jobs:
               comment = "<details>\n"
               comment += "<summary>Hooks produced the following warnings"
               const shaRegex = /(All green|Failure) in build \d+ \((?<sha>(\d|[a-z])+)\):/g;
-              const shaMatch = context.payload.comment.body.match(shaRegex)
+              const shaMatch = shaRegex.exec(context.payload.comment.body)
               if(shaMatch)
               {
                 comment += " for commit " + shaMatch.groups.sha
