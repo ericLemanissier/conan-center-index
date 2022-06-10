@@ -11,7 +11,8 @@ body:
 
 - type: textarea
   attributes:
-    label: Package and Environment Details (include every applicable attribute)
+    label: Package and Environment Details
+    description: include every applicable attribute)
     value: |
      * Package Name/Version: **zlib/1.2.8**
      * Operating System+version: **Linux Ubuntu 18.04**
@@ -25,7 +26,8 @@ body:
 
 - type: textarea
   attributes:
-    label: Conan profile (output of `conan profile show default` or `conan profile show <profile>` if custom profile is in use)
+    label: Conan profile
+    description: output of `conan profile show default` or `conan profile show <profile>` if custom profile is in use
 
 - type: textarea
   attributes:
@@ -33,7 +35,8 @@ body:
 
 - type: textarea
   attributes:
-    label:  Logs (Include/Attach if Applicable)
+    label:  Logs
+    description: Include/Attach if Applicable
     value: |
       <details><summary>Click to expand log</summary>
 
