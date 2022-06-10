@@ -31,7 +31,8 @@ body:
 
 - type: textarea
   attributes:
-    label:  Steps to reproduce (Include if Applicable)
+    label:  Steps to reproduce
+    description: Include if Applicable
 
 - type: textarea
   attributes:
