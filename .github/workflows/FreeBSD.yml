@@ -45,7 +45,7 @@ jobs:
       run: ls CCI/recipes/${{ matrix.regex }}*/
     - name: run
       id: test
-      uses: vmactions/freebsd-vm@v0.1.5
+      uses: vmactions/freebsd-vm@v0.2.9
       with:
         envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE REMOTE_URL REMOTE_TOKEN REMOTE_USER'
         usesh: true
