@@ -19,7 +19,7 @@ env:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:  
   FreeBSD:      
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +45,7 @@ jobs:
       run: ls CCI/recipes/${{ matrix.regex }}*/
     - name: run
       id: test
-      uses: vmactions/freebsd-vm@v0.1.5
+      uses: vmactions/freebsd-vm@v0
       with:
         envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE REMOTE_URL REMOTE_TOKEN REMOTE_USER'
         usesh: true
