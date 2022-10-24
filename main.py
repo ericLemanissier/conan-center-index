@@ -1,21 +1,23 @@
+#pylint: disable = missing-module-docstring, missing-class-docstring, missing-function-docstring, invalid-name, line-too-long, too-few-public-methods
+
 import os
 import json
+import asyncio
+import logging
 import yaml
 import requests
-import asyncio, aiohttp
+import aiohttp
 import packaging.version
 
 class MatrixGenerator:
     owner = "conan-io"
     repo = "conan-center-index"
 
-    dry_run = True
-
     def __init__(self, token=None, user=None, pw=None):
         self.session = requests.session()
         self.session.headers = {}
         if token:
-            self.session.headers["Authorization"] = "token %s" % token
+            self.session.headers["Authorization"] = f"token {token}"
 
         self.session.headers["Accept"] = "application/vnd.github.v3+json"
         self.session.headers["User-Agent"] = "request"
@@ -28,17 +30,18 @@ class MatrixGenerator:
 
         page = 1
         while True:
-            r = self._make_request("GET", f"/repos/{self.owner}/{self.repo}/pulls", params={
+            r = self.session.request("GET", f"https://api.github.com/repos/{self.owner}/{self.repo}/pulls", params={
                 "state": "open",
                 "sort": "created",
                 "direction": "desc",
                 "per_page": 100,
                 "page": str(page)
             })
+            r.raise_for_status()
             results = r.json()
             for p in results:
                 if int(p["number"]) in [13539,]:
-                    print("ignoring pr #%s because it is in deny list" % p["number"])
+                    logging.warning("ignoring pr #%s because it is in deny list", p["number"])
                     continue
                 body = p["body"] or ""
                 if "bsd" in p["title"].lower() or "bsd" in body.lower():
@@ -56,7 +59,7 @@ class MatrixGenerator:
                         try:
                             diff = await r.text()
                         except UnicodeDecodeError:
-                            print("error when decoding diff at %s" % self.prs[pr]["diff_url"])
+                            logging.warning("error when decoding diff at %s", self.prs[pr]["diff_url"])
                             return
                         for line in diff.split("\n"):
                             if line.startswith("+++ b/recipes/") or line.startswith("--- a/recipes/"):
@@ -66,26 +69,14 @@ class MatrixGenerator:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(_populate_diffs())
 
-    def _make_request(self, method, url, **kwargs):
-        if self.dry_run and method in ["PATCH", "POST"]:
-            return
-
-        r = self.session.request(method, "https://api.github.com" + url, **kwargs)
-        r.raise_for_status()
-        return r
-
     async def generate_matrix(self):
-                
-        r = self._make_request("GET", f"/repos/{self.owner}/{self.repo}/contents/recipes")
-
         res = []
-                
         async with aiohttp.ClientSession() as session:
 
             async def _add_package(package, repo, ref, pr = "0"):
                 version = packaging.version.Version("0.0.0")
                 folder = ""
-                async with session.get("https://raw.githubusercontent.com/%s/%s/recipes/%s/config.yml" % (repo, ref, package)) as r:
+                async with session.get(f"https://raw.githubusercontent.com/{repo}/{ref}/recipes/{package}/config.yml") as r:
                     if r.status  == 404:
                         return
                     r.raise_for_status()
@@ -97,7 +88,7 @@ class MatrixGenerator:
                                 version = tmpVer
                                 folder = config["versions"][v]["folder"]
                         except packaging.version.InvalidVersion:
-                            print("Error parsing version %s for package %s in pr %s" % (v, package, pr))
+                            logging.warning("Error parsing version %s for package %s in pr %s", v, package, pr)
                 if folder:
                     res.append({
                             'package': package,
@@ -115,16 +106,16 @@ class MatrixGenerator:
                 pr_number = str(pr["number"])
                 for package in pr['libs']:
                     if not pr["head"]["repo"]:
-                        print("no repo detected for pr #%s" % pr_number)
+                        logging.warning("no repo detected for pr #%s", pr_number)
                         continue
                     tasks.append(asyncio.create_task(_add_package(package, pr["head"]["repo"]["full_name"], pr["head"]["ref"], pr_number)))
 
             await asyncio.gather(*tasks)
 
 
-        with open("matrix.yml", "w") as f:
+        with open("matrix.yml", "w", encoding="latin_1") as f:
             json.dump({"include": res}, f)
-                
+
 
 
 
