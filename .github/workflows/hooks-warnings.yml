@@ -1,34 +1,46 @@
+name: hooks warnings
+
 on:
   issue_comment:
     types: [created]
 
 jobs:
   comment:
-    if: ${{ github.event.issue.pull_request && github.event.sender.login == 'ericLemanissier'}}
+    if: ${{ github.event.issue.pull_request && github.event.sender.login == 'conan-center-bot' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
         with:
           script: |
             warnings_map = new Map()
-            const regexpCoordinates = /\[All logs\]\((?<url>https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))\)/g;
-            for (const match of context.payload.comment.body.matchAll(regexpCoordinates))
+            const link_regex = /\[All logs\]\((?<url>https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))\)/g;
+            for (const match of context.payload.comment.body.matchAll(link_regex))
             {
               prefix = "https://c3i.jfrog.io/c3i/misc/summary.html?json="
               if(!match.groups.url.startsWith(prefix))
                  continue;
               url = match.groups.url.slice(prefix.length)
-              const result = await github.request({
-                url: url,
-              });
+              try {
+                result = await github.request({
+                  url: url,
+                });
+              } catch(err) {
+                core.warning(`error ${err.status} for url ${err.request.url}`)
+                continue
+              }
               for (const job of result.data)
               {
                 if (job.build == null)
                   continue;
-                const log = await github.request({
-                  baseUrl: "https://c3i.jfrog.io/c3i/misc/",
-                  url: job.build,
-                });
+                try {
+                  log = await github.request({
+                    baseUrl: "https://c3i.jfrog.io/c3i/misc/",
+                    url: job.build,
+                  });
+                } catch(err) {
+                  core.warning(`error ${err.status} for url ${err.request.url}`)
+                  continue
+                }
                 prefix = "[HOOK - conan-center.py] "
                 warnings = log.data.split("\n").filter(line => line.startsWith(prefix) && line.includes(" WARN: "))
                 if(warnings.length == 0)

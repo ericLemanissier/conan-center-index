@@ -1,39 +1,55 @@
+from conan import ConanFile
+from conan.tools.files import copy, get
+from conan.tools.layout import basic_layout
 import os
 
-from conans import ConanFile, tools
+required_conan_version = ">=1.50.0"
+
 
 class VulkanHeadersConan(ConanFile):
     name = "vulkan-headers"
     description = "Vulkan Header files."
     license = "Apache-2.0"
-    topics = ("conan", "vulkan-headers", "vulkan")
+    topics = ("vulkan-headers", "vulkan")
     homepage = "https://github.com/KhronosGroup/Vulkan-Headers"
     url = "https://github.com/conan-io/conan-center-index"
+    settings = "os", "arch", "compiler", "build_type"
     no_copy_source = True
 
-    @property
-    def _source_subfolder(self):
-        return "source_subfolder"
+    def layout(self):
+        basic_layout(self, src_folder="src")
 
     def package_id(self):
-        self.info.header_only()
+        self.info.clear()
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        url = self.conan_data["sources"][self.version]["url"]
-        version = os.path.basename(url).replace(".tar.gz", "").replace(".zip", "")
-        if version.startswith('v'):
-            version = version[1:]
-        extracted_dir = "Vulkan-Headers-" + version
-        os.rename(extracted_dir, self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version],
+            destination=self.source_folder, strip_root=True)
+
+    def build(self):
+        pass
 
     def package(self):
-        self.copy("LICENSE.txt", dst="licenses", src=self._source_subfolder)
-        self.copy("*", dst="include", src=os.path.join(self.source_folder, self._source_subfolder, "include"))
-        self.copy("*", dst=os.path.join("res", "vulkan", "registry"),
-                       src=os.path.join(self.source_folder, self._source_subfolder, "registry"))
+        copy(self, "LICENSE.txt", src=self.source_folder, dst=os.path.join(self.package_folder, "licenses"))
+        copy(self, "*", src=os.path.join(self.source_folder, "include"), dst=os.path.join(self.package_folder, "include"))
+        copy(self, "*", src=os.path.join(self.source_folder, "registry"), dst=os.path.join(self.package_folder, "res", "vulkan", "registry"))
 
     def package_info(self):
-        # TODO: CMake Target should be Vulkan::Headers
-        self.cpp_info.names["cmake_find_package"] = "VulkanHeaders"
-        self.cpp_info.names["cmake_find_package_multi"] = "VulkanHeaders"
+        self.cpp_info.set_property("cmake_file_name", "VulkanHeaders")
+        self.cpp_info.components["vulkanheaders"].set_property("cmake_target_name", "Vulkan::Headers")
+        self.cpp_info.components["vulkanheaders"].bindirs = []
+        self.cpp_info.components["vulkanheaders"].libdirs = []
+        self.cpp_info.components["vulkanregistry"].set_property("cmake_target_name", "Vulkan::Registry")
+        self.cpp_info.components["vulkanregistry"].includedirs = [os.path.join("res", "vulkan", "registry")]
+        self.cpp_info.components["vulkanregistry"].bindirs = []
+        self.cpp_info.components["vulkanregistry"].libdirs = []
+        self.cpp_info.components["vulkanregistry"].resdirs = ["res"]
+
+        self.cpp_info.filenames["cmake_find_package"] = "VulkanHeaders"
+        self.cpp_info.filenames["cmake_find_package_multi"] = "VulkanHeaders"
+        self.cpp_info.names["cmake_find_package"] = "Vulkan"
+        self.cpp_info.names["cmake_find_package_multi"] = "Vulkan"
+        self.cpp_info.components["vulkanheaders"].names["cmake_find_package"] = "Headers"
+        self.cpp_info.components["vulkanheaders"].names["cmake_find_package_multi"] = "Headers"
+        self.cpp_info.components["vulkanregistry"].names["cmake_find_package"] = "Registry"
+        self.cpp_info.components["vulkanregistry"].names["cmake_find_package_multi"] = "Registry"

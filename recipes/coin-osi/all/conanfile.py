@@ -1,13 +1,20 @@
-from conans import AutoToolsBuildEnvironment, ConanFile, tools
-from conans.errors import ConanInvalidConfiguration
-from contextlib import contextmanager
+from conan import ConanFile
+from conan.tools.build import cross_building
+from conan.tools.files import get, apply_conandata_patches, rmdir, rm, rename
+from conan.tools.scm import Version
+from conan.errors import ConanInvalidConfiguration
+from conans import AutoToolsBuildEnvironment, tools
+import contextlib
 import os
+import shutil
+
+required_conan_version = ">=1.50.0"
 
 
 class CoinOsiConan(ConanFile):
     name = "coin-osi"
     description = "COIN-OR Linear Programming Solver"
-    topics = ("conan", "clp", "simplex", "solver", "linear", "programming")
+    topics = ("clp", "simplex", "solver", "linear", "programming")
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/coin-or/Osi"
     license = ("EPL-2.0",)
@@ -33,13 +40,19 @@ class CoinOsiConan(ConanFile):
     def _build_subfolder(self):
         return "build_subfolder"
 
+    @property
+    def _settings_build(self):
+        return getattr(self, "settings_build", self.settings)
+
+    @property
+    def _user_info_build(self):
+        return getattr(self, "user_info_build", self.deps_user_info)
+
     def config_options(self):
         if self.settings.os == "Windows":
             del self.options.fPIC
 
     def configure(self):
-        if self.settings.os == "Windows" and self.options.shared:
-            raise ConanInvalidConfiguration("coin-osi does not support shared builds on Windows")
         if self.options.shared:
             del self.options.fPIC
 
@@ -47,18 +60,26 @@ class CoinOsiConan(ConanFile):
         self.requires("coin-utils/2.11.4")
 
     def build_requirements(self):
-        self.build_requires("pkgconf/1.7.3")
-        if tools.os_info.is_windows and not tools.get_env("CONAN_BASH_PATH"):
-            self.build_requires("msys2/20200517")
+        self.build_requires("gnu-config/cci.20201022")
+        self.build_requires("pkgconf/1.7.4")
+        if self._settings_build.os == "Windows" and not tools.get_env("CONAN_BASH_PATH"):
+            self.build_requires("msys2/cci.latest")
+
+    def validate(self):
+        if self.settings.os == "Windows" and self.options.shared:
+            raise ConanInvalidConfiguration("coin-osi does not support shared builds on Windows")
+        # FIXME: This issue likely comes from very old autotools versions used to produce configure.
+        if hasattr(self, "settings_build") and cross_building(self) and self.options.shared:
+            raise ConanInvalidConfiguration("coin-osi shared not supported yet when cross-building")
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        os.rename("Osi-releases-{}".format(self.version), self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version],
+                  destination=self._source_subfolder, strip_root=True)
 
-    @contextmanager
+    @contextlib.contextmanager
     def _build_context(self):
         if self.settings.compiler == "Visual Studio":
-            with tools.vcvars(self.settings):
+            with tools.vcvars(self):
                 env = {
                     "CC": "cl -nologo",
                     "CXX": "cl -nologo",
@@ -83,13 +104,18 @@ class CoinOsiConan(ConanFile):
         ]
         if self.settings.compiler == "Visual Studio":
             self._autotools.cxx_flags.append("-EHsc")
-            configure_args.append("--enable-msvc={}".format(self.settings.compiler.runtime))
-        self._autotools.configure(configure_dir=os.path.join(self.source_folder, self._source_subfolder), args=configure_args)
+            configure_args.append(f"--enable-msvc={self.settings.compiler.runtime}")
+            if Version(self.settings.compiler.version) >= 12:
+                self._autotools.flags.append("-FS")
+        self._autotools.configure(configure_dir=self._source_subfolder, args=configure_args)
         return self._autotools
 
     def build(self):
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            tools.patch(**patch)
+        apply_conandata_patches(self)
+        shutil.copy(self._user_info_build["gnu-config"].CONFIG_SUB,
+                    os.path.join(self._source_subfolder, "config.sub"))
+        shutil.copy(self._user_info_build["gnu-config"].CONFIG_GUESS,
+                    os.path.join(self._source_subfolder, "config.guess"))
         with self._build_context():
             autotools = self._configure_autotools()
             autotools.make()
@@ -98,18 +124,17 @@ class CoinOsiConan(ConanFile):
         self.copy("LICENSE", src=self._source_subfolder, dst="licenses")
         with self._build_context():
             autotools = self._configure_autotools()
-            autotools.install()
+            autotools.install(args=["-j1"]) # due to configure generated with old autotools version
 
-        os.unlink(os.path.join(self.package_folder, "lib", "libOsi.la"))
-        os.unlink(os.path.join(self.package_folder, "lib", "libOsiCommonTests.la"))
+        rm(self, "*.la", os.path.join(self.package_folder, "lib"))
 
         if self.settings.compiler == "Visual Studio":
             for l in ("Osi", "OsiCommonTests"):
-                os.rename(os.path.join(self.package_folder, "lib", "lib{}.lib").format(l),
-                          os.path.join(self.package_folder, "lib", "{}.lib").format(l))
+                rename(self, os.path.join(self.package_folder, "lib", f"lib{l}.lib"),
+                             os.path.join(self.package_folder, "lib", f"{l}.lib"))
 
-        tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
-        tools.rmdir(os.path.join(self.package_folder, "share"))
+        rmdir(self, os.path.join(self.package_folder, "lib", "pkgconfig"))
+        rmdir(self, os.path.join(self.package_folder, "share"))
 
     def package_info(self):
         self.cpp_info.components["libosi"].libs = ["Osi"]

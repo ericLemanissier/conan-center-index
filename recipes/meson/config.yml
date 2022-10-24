@@ -1,31 +1,29 @@
 versions:
-  "0.51.2":
+  "0.63.3":
     folder: all
-  "0.52.0":
+  "0.63.2":
     folder: all
-  "0.52.1":
+  "0.63.1":
     folder: all
-  "0.53.0":
+  "0.63.0":
     folder: all
-  "0.53.1":
+  "0.62.2":
     folder: all
-  "0.53.2":
+  "0.62.1":
     folder: all
-  "0.54.0":
+  "0.62.0":
     folder: all
-  "0.54.1":
+  "0.61.2":
     folder: all
-  "0.54.2":
+  "0.60.2":
     folder: all
-  "0.54.3":
+  "0.59.3":
     folder: all
-  "0.55.0":
+  "0.58.1":
     folder: all
-  "0.55.1":
+  "0.57.2":
     folder: all
-  "0.55.2":
+  "0.56.2":
     folder: all
   "0.55.3":
-    folder: all
-  "0.56.0":
     folder: all

@@ -1,11 +1,13 @@
 versions:
-  "7.4.9":
+  "9.0.1":
     folder: all
-  "7.4.8":
+  "8.1.0":
     folder: all
-  "7.4.6":
+  "8.0.5":
     folder: all
-  "7.4.5":
+  "8.0.3":
     folder: all
-  "7.4.4":
+  "7.5.0":
+    folder: all
+  "7.4.10":
     folder: all

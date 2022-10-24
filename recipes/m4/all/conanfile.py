@@ -1,116 +1,123 @@
-from conans import ConanFile, tools, AutoToolsBuildEnvironment
-from contextlib import contextmanager
+from conan import ConanFile
+from conan.tools.env import Environment, VirtualBuildEnv
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rmdir, save
+from conan.tools.gnu import Autotools, AutotoolsToolchain
+from conan.tools.layout import basic_layout
+from conan.tools.microsoft import is_msvc, unix_path
+from conan.tools.scm import Version
 import os
+
+required_conan_version = ">=1.52.0"
 
 
 class M4Conan(ConanFile):
     name = "m4"
     description = "GNU M4 is an implementation of the traditional Unix macro processor"
-    topics = ("conan", "m4", "macro", "macro processor")
-    url = "https://github.com/conan-io/conan-center-index"
+    topics = ("macro", "preprocessor")
     homepage = "https://www.gnu.org/software/m4/"
+    url = "https://github.com/conan-io/conan-center-index"
     license = "GPL-3.0-only"
-    exports_sources = ["patches/*.patch"]
     settings = "os", "arch", "compiler", "build_type"
 
-    _autotools = None
-    _source_subfolder = "source_subfolder"
-    _build_subfolder = "build_subfolder"
-
     @property
-    def _is_msvc(self):
-        return self.settings.compiler == "Visual Studio"
+    def _settings_build(self):
+        return getattr(self, "settings_build", self.settings)
 
-    @property
-    def _is_clang(self):
-        return str(self.settings.compiler).endswith("clang")
+    def export_sources(self):
+        export_conandata_patches(self)
+
+    def layout(self):
+        basic_layout(self, src_folder="src")
+
+    def package_id(self):
+        del self.info.settings.compiler
 
     def build_requirements(self):
-        if tools.os_info.is_windows and not tools.get_env("CONAN_BASH_PATH"):
-            self.build_requires("msys2/20200517")
+        if self._settings_build.os == "Windows":
+            if not self.conf.get("tools.microsoft.bash:path", default=False, check_type=bool):
+                self.tool_requires("msys2/cci.latest")
+            self.win_bash = True
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        os.rename("m4-" + self.version, self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version],
+            destination=self.source_folder, strip_root=True)
 
-    def _configure_autotools(self):
-        if self._autotools:
-            return self._autotools
-        conf_args = []
-        self._autotools = AutoToolsBuildEnvironment(self, win_bash=tools.os_info.is_windows)
-        build_canonical_name = None
-        host_canonical_name = None
-        if self.settings.compiler == "Visual Studio":
-            # The somewhat older configure script of m4 does not understand the canonical names of Visual Studio
-            build_canonical_name = False
-            host_canonical_name = False
-            self._autotools.flags.append("-FS")
+    def generate(self):
+        env = VirtualBuildEnv(self)
+        env.generate()
+
+        env = Environment()
+        env.prepend_path("PATH", self.source_folder)
+        env.vars(self).save_script("m4buildenv_help2man_trick")
+
+        if is_msvc(self):
+            env = Environment()
+            env.define_path("AR", f"{unix_path(self, self.source_folder)}/build-aux/ar-lib lib")
+            env.define("LD", "link")
+            env.define("NM", "dumpbin -symbols")
+            env.define("OBJDUMP", ":")
+            env.define("RANLIB", ":")
+            env.define("STRIP", ":")
+            env.vars(self).save_script("m4buildenv_msvc_for_autotools")
+
+        tc = AutotoolsToolchain(self)
+        if is_msvc(self):
+            tc.extra_cflags.append("-FS")
             # Avoid a `Assertion Failed Dialog Box` during configure with build_type=Debug
             # Visual Studio does not support the %n format flag:
             # https://docs.microsoft.com/en-us/cpp/c-runtime-library/format-specification-syntax-printf-and-wprintf-functions
             # Because the %n format is inherently insecure, it is disabled by default. If %n is encountered in a format string,
             # the invalid parameter handler is invoked, as described in Parameter Validation. To enable %n support, see _set_printf_count_output.
-            conf_args.extend(["gl_cv_func_printf_directive_n=no", "gl_cv_func_snprintf_directive_n=no", "gl_cv_func_snprintf_directive_n=no"])
+            tc.configure_args.extend([
+                "gl_cv_func_printf_directive_n=no",
+                "gl_cv_func_snprintf_directive_n=no",
+                "gl_cv_func_snprintf_directive_n=no",
+            ])
             if self.settings.build_type in ("Debug", "RelWithDebInfo"):
-                self._autotools.link_flags.append("-PDB")
-        self._autotools.configure(args=conf_args, configure_dir=self._source_subfolder, build=build_canonical_name, host=host_canonical_name)
-        return self._autotools
-
-    @contextmanager
-    def _build_context(self):
-        env = {}
-        if self.settings.compiler == "Visual Studio":
-            with tools.vcvars(self.settings):
-                env.update({
-                    "AR": "{}/build-aux/ar-lib lib".format(tools.unix_path(self._source_subfolder)),
-                    "CC": "cl -nologo",
-                    "CXX": "cl -nologo",
-                    "LD": "link",
-                    "NM": "dumpbin -symbols",
-                    "OBJDUMP": ":",
-                    "RANLIB": ":",
-                    "STRIP": ":",
-                })
-                with tools.environment_append(env):
-                    yield
-        else:
-            if self._is_clang:
-                env["CFLAGS"] = "-rtlib=compiler-rt"
-            with tools.environment_append(env):
-                yield
+                tc.extra_ldflags.append("-PDB")
+        elif self.settings.compiler == "clang":
+            if Version(self.version) < "1.4.19":
+                tc.extra_cflags.extend([
+                    "-rtlib=compiler-rt",
+                    "-Wno-unused-command-line-argument",
+                ])
+        if self.settings.os == "Windows":
+            tc.configure_args.append("ac_cv_func__set_invalid_parameter_handler=yes")
+        tc.generate()
 
     def _patch_sources(self):
-        for patch in self.conan_data["patches"][self.version]:
-            tools.patch(**patch)
+        apply_conandata_patches(self)
+        # dummy file for configure
+        help2man = os.path.join(self.source_folder, "help2man")
+        save(self, help2man, "#!/usr/bin/env bash\n:")
+        if os.name == "posix":
+            os.chmod(help2man, os.stat(help2man).st_mode | 0o111)
 
     def build(self):
         self._patch_sources()
-        with self._build_context():
-            autotools = self._configure_autotools()
-            autotools.make()
-            if bool(os.environ.get("CONAN_RUN_TESTS", "")):
-                self.output.info("Running m4 checks...")
-                with tools.chdir("tests"):
-                    autotools.make(target="check")
+        autotools = Autotools(self)
+        autotools.configure()
+        autotools.make()
 
     def package(self):
-        self.copy(pattern="COPYING", dst="licenses", src=self._source_subfolder)
-        with self._build_context():
-            autotools = self._configure_autotools()
-            autotools.install()
-        tools.rmdir(os.path.join(self.package_folder, "share"))
-
-    def package_id(self):
-        self.info.include_build_settings()
+        copy(self, "COPYING", src=self.source_folder, dst=os.path.join(self.package_folder, "licenses"))
+        autotools = Autotools(self)
+        # TODO: replace by autotools.install() once https://github.com/conan-io/conan/issues/12153 fixed
+        autotools.install(args=[f"DESTDIR={unix_path(self, self.package_folder)}"])
+        rmdir(self, os.path.join(self.package_folder, "share"))
 
     def package_info(self):
-        bin_path = os.path.join(self.package_folder, "bin")
-        self.output.info("Appending PATH environment variable: {}".format(bin_path))
-        self.env_info.PATH.append(bin_path)
-
-        bin_ext = ".exe" if self.settings.os == "Windows" else ""
-        m4_bin = os.path.join(self.package_folder, "bin", "m4{}".format(bin_ext)).replace("\\", "/")
+        self.cpp_info.libdirs = []
+        self.cpp_info.includedirs = []
 
         # M4 environment variable is used by a lot of scripts as a way to override a hard-coded embedded m4 path
-        self.output.info("Setting M4 environment variable: {}".format(m4_bin))
+        bin_ext = ".exe" if self.settings.os == "Windows" else ""
+        m4_bin = os.path.join(self.package_folder, "bin", f"m4{bin_ext}").replace("\\", "/")
+        self.runenv_info.define_path("M4", m4_bin)
+        self.buildenv_info.define_path("M4", m4_bin)
+
+        # TODO: to remove in conan v2
+        bin_path = os.path.join(self.package_folder, "bin")
+        self.output.info(f"Appending PATH environment variable: {bin_path}")
+        self.env_info.PATH.append(bin_path)
         self.env_info.M4 = m4_bin

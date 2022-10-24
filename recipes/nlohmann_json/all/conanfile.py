@@ -1,74 +1,46 @@
-from conans import ConanFile, tools, CMake
+from conan import ConanFile
+from conan.tools.build import check_min_cppstd
+from conan.tools.files import copy, get
+from conan.tools.layout import basic_layout
 import os
+
+required_conan_version = ">=1.50.0"
 
 
 class NlohmannJsonConan(ConanFile):
     name = "nlohmann_json"
     homepage = "https://github.com/nlohmann/json"
     description = "JSON for Modern C++ parser and generator."
-    topics = ("conan", "jsonformoderncpp",
-              "nlohmann_json", "json", "header-only")
+    topics = ("jsonformoderncpp", "nlohmann_json", "json", "header-only")
     url = "https://github.com/conan-io/conan-center-index"
-    no_copy_source = True
     license = "MIT"
-    settings = "os", "compiler", "build_type", "arch"
-    options = {
-        "multiple_headers": [True, False],
-        "implicit_conversions": [True, False],
-    }
-    default_options = {
-        "multiple_headers": False,
-        "implicit_conversions": True,
-    }
+    settings = "os", "arch", "compiler", "build_type"
+    no_copy_source = True
 
-    _cmake = None
-
-    @property
-    def _can_disable_implicit_conversions(self):
-        return tools.Version(self.version) >= "3.9.0"
-
-    @property
-    def _source_subfolder(self):
-        return "source_subfolder"
-
-    def config_options(self):
-        if not self._can_disable_implicit_conversions:
-            del self.options.implicit_conversions
-
-    def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        extracted_dir = "json-" + self.version
-        os.rename(extracted_dir, self._source_subfolder)
-
-    def _configure_cmake(self):
-        if self._cmake:
-            return self._cmake
-        self._cmake = CMake(self)
-        self._cmake.definitions["JSON_BuildTests"] = False
-        self._cmake.definitions["JSON_MultipleHeaders"] = self.options.multiple_headers
-        if self._can_disable_implicit_conversions:
-            self._cmake.definitions["JSON_ImplicitConversions"] = self.options.implicit_conversions
-
-        self._cmake.configure(source_folder=self._source_subfolder)
-        return self._cmake
-
-    def build(self):
-        cmake = self._configure_cmake()
-        cmake.build()
-
-    def package(self):
-        self.copy(pattern="LICENSE*", dst="licenses", src=self._source_subfolder)
-        cmake = self._configure_cmake()
-        cmake.install()
-        tools.rmdir(os.path.join(self.package_folder, "lib"))
-        try:
-            os.remove(os.path.join(self.package_folder, "nlohmann_json.natvis"))
-        except FileNotFoundError:
-            pass
+    def layout(self):
+        basic_layout(self, src_folder="src")
 
     def package_id(self):
-        self.info.settings.clear()
+        self.info.clear()
+
+    def validate(self):
+        if self.settings.compiler.get_safe("cppstd"):
+            check_min_cppstd(self, 11)
+
+    def source(self):
+        get(self, **self.conan_data["sources"][self.version],
+            destination=self.source_folder, strip_root=True)
+
+    def build(self):
+        pass
+
+    def package(self):
+        copy(self, "LICENSE*", self.source_folder, os.path.join(self.package_folder, "licenses"))
+        copy(self, "*", os.path.join(self.source_folder, "include"), os.path.join(self.package_folder, "include"))
 
     def package_info(self):
-        if self._can_disable_implicit_conversions:
-            self.cpp_info.defines = ["JSON_USE_IMPLICIT_CONVERSIONS=%s" % int(bool(self.options.implicit_conversions))]
+        self.cpp_info.set_property("cmake_file_name", "nlohmann_json")
+        self.cpp_info.set_property("cmake_target_name", "nlohmann_json::nlohmann_json")
+        self.cpp_info.set_property("pkg_config_name", "nlohmann_json")
+        self.cpp_info.bindirs = []
+        self.cpp_info.libdirs = []

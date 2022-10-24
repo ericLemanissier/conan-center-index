@@ -1,11 +1,12 @@
-#include <toml.hpp>
+#include <toml.hpp> // Single header
+
 #include <fstream> //required for toml::parse_file()
 #include <iostream>
 
 using namespace std::string_view_literals;
 
-int main() {
-    auto config = toml::parse_file( "../../configuration.toml" );
+int main(int argc, char* argv[]) {
+    auto config = toml::parse_file(argv[1]);
 
     // get key-value pairs
     std::string_view library_name = config["library"]["name"].value_or(""sv);

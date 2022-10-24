@@ -1,39 +1,36 @@
+from conan import ConanFile
+from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
+from conan.tools.files import apply_conandata_patches, copy, get, rmdir
 import os
 
-from conans import ConanFile, CMake, tools
+required_conan_version = ">=1.47.0"
+
 
 class H3Conan(ConanFile):
     name = "h3"
     description = "Hexagonal hierarchical geospatial indexing system."
     license = "Apache-2.0"
-    topics = ("conan", "h3", "hierarchical", "geospatial", "indexing")
+    topics = ("h3", "hierarchical", "geospatial", "indexing")
     homepage = "https://github.com/uber/h3"
     url = "https://github.com/conan-io/conan-center-index"
-    exports_sources = ["CMakeLists.txt", "patches/**"]
-    generators = "cmake"
+
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
         "build_filters": [True, False],
-        "h3_prefix": "ANY"
+        "h3_prefix": ["ANY"],
     }
     default_options = {
         "shared": False,
         "fPIC": True,
         "build_filters": True,
-        "h3_prefix": ""
+        "h3_prefix": "",
     }
 
-    _cmake = None
-
-    @property
-    def _source_subfolder(self):
-        return "source_subfolder"
-
-    @property
-    def _build_subfolder(self):
-        return "build_subfolder"
+    def export_sources(self):
+        for p in self.conan_data.get("patches", {}).get(self.version, []):
+            copy(self, p["patch_file"], self.recipe_folder, self.export_sources_folder)
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -42,45 +39,54 @@ class H3Conan(ConanFile):
     def configure(self):
         if self.options.shared:
             del self.options.fPIC
-        del self.settings.compiler.libcxx
-        del self.settings.compiler.cppstd
+        try:
+            del self.settings.compiler.libcxx
+        except Exception:
+            pass
+        try:
+            del self.settings.compiler.cppstd
+        except Exception:
+            pass
+
+    def layout(self):
+        cmake_layout(self, src_folder="src")
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        os.rename(self.name + "-" + self.version, self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version],
+            destination=self.source_folder, strip_root=True)
+
+    def generate(self):
+        tc = CMakeToolchain(self)
+        tc.variables["H3_PREFIX"] = self.options.h3_prefix
+        tc.variables["ENABLE_COVERAGE"] = False
+        tc.variables["BUILD_BENCHMARKS"] = False
+        tc.variables["BUILD_FILTERS"] = self.options.build_filters
+        tc.variables["BUILD_GENERATORS"] = False
+        tc.variables["WARNINGS_AS_ERRORS"] = False
+        tc.variables["ENABLE_FORMAT"] = False
+        tc.variables["ENABLE_LINTING"] = False
+        tc.variables["ENABLE_DOCS"] = False
+        tc.variables["BUILD_TESTING"] = False
+        tc.generate()
 
     def build(self):
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            tools.patch(**patch)
-        cmake = self._configure_cmake()
+        apply_conandata_patches(self)
+        cmake = CMake(self)
+        cmake.configure()
         cmake.build()
 
-    def _configure_cmake(self):
-        if self._cmake:
-            return self._cmake
-        self._cmake = CMake(self)
-        self._cmake.definitions["H3_PREFIX"] = self.options.h3_prefix
-        self._cmake.definitions["ENABLE_COVERAGE"] = False
-        self._cmake.definitions["BUILD_BENCHMARKS"] = False
-        self._cmake.definitions["BUILD_FILTERS"] = self.options.build_filters
-        self._cmake.definitions["BUILD_GENERATORS"] = False
-        self._cmake.definitions["WARNINGS_AS_ERRORS"] = False
-        self._cmake.definitions["ENABLE_LINTING"] = False
-        self._cmake.definitions["ENABLE_DOCS"] = False
-        self._cmake.definitions["BUILD_TESTING"] = False
-        self._cmake.configure(build_folder=self._build_subfolder)
-        return self._cmake
-
     def package(self):
-        self.copy("LICENSE", dst="licenses", src=self._source_subfolder)
-        cmake = self._configure_cmake()
+        copy(self, "LICENSE", src=self.source_folder, dst=os.path.join(self.package_folder, "licenses"))
+        cmake = CMake(self)
         cmake.install()
-        tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
+        rmdir(self, os.path.join(self.package_folder, "lib", "cmake"))
 
     def package_info(self):
-        self.cpp_info.libs = tools.collect_libs(self)
+        self.cpp_info.set_property("cmake_file_name", "h3")
+        self.cpp_info.set_property("cmake_target_name", "h3::h3")
+        self.cpp_info.libs = ["h3"]
         self.cpp_info.defines.append("H3_PREFIX={}".format(self.options.h3_prefix))
-        if self.settings.os == "Linux":
+        if self.settings.os in ["Linux", "FreeBSD"]:
             self.cpp_info.system_libs.append("m")
 
         if self.options.build_filters:
