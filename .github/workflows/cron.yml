@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: freebsd
-      - uses: actions/setup-python@v1
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
       - run: "pip3 install pyyaml requests aiohttp packaging"
