@@ -102,10 +102,9 @@ class MatrixGenerator:
     def _get_modified_libs_for_pr(self, pr: int) -> Set[str]:
         res = set()
         for file in self._make_request("GET", f"/repos/{self.owner}/{self.repo}/pulls/{pr}/files").json():
-            for field in ['filename', 'previous_filename']:
-                parts = file.get(field, '').split("/")
-                if len(parts) >= 4 and parts[0] == "recipes":
-                    res.add(f"{parts[1]}/{parts[2]}")
+            parts = file["filename"].split("/")
+            if len(parts) >= 2 and parts[0] == "recipes":
+                res.add(parts[1])
         return res
 
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
