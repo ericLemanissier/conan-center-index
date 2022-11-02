@@ -1,21 +1,24 @@
-#pylint: disable = missing-module-docstring, missing-class-docstring, missing-function-docstring, invalid-name, line-too-long, too-few-public-methods
+# pylint: disable = invalid-name,too-few-public-methods
 
 import os
 import json
 import asyncio
 import logging
+from datetime import datetime
+from typing import Dict, Set, Any
 import yaml
 import requests
 import aiohttp
 import packaging.version
 
-class MatrixGenerator:
-    owner = "conan-io"
-    repo = "conan-center-index"
 
-    def __init__(self, token=None, user=None, pw=None):
+class MatrixGenerator:
+    owner: str = "conan-io"
+    repo: str = "conan-center-index"
+    dry_run: bool = False
+
+    def __init__(self, token: str=None, user: str=None, pw: str=None):  # noqa: MC0001
         self.session = requests.session()
-        self.session.headers = {}
         if token:
             self.session.headers["Authorization"] = f"token {token}"
 
@@ -26,21 +29,19 @@ class MatrixGenerator:
         if user and pw:
             self.session.auth = requests.auth.HTTPBasicAuth(user, pw)
 
-        self.prs = {}
+        self.prs: Dict[int, Dict[str, Any]] = {}
 
         page = 1
         while True:
-            r = self.session.request("GET", f"https://api.github.com/repos/{self.owner}/{self.repo}/pulls", params={
+            results = self._make_request("GET", f"/repos/{self.owner}/{self.repo}/pulls", params={
                 "state": "open",
                 "sort": "created",
                 "direction": "desc",
                 "per_page": 100,
                 "page": str(page)
-            })
-            r.raise_for_status()
-            results = r.json()
+            }).json()
             for p in results:
-                if int(p["number"]) in [13539,]:
+                if int(p["number"]) in [13539, ]:
                     logging.warning("ignoring pr #%s because it is in deny list", p["number"])
                     continue
                 body = p["body"] or ""
@@ -50,57 +51,40 @@ class MatrixGenerator:
             if not results:
                 break
 
-        async def _populate_diffs():
-            async with aiohttp.ClientSession() as session:
-                async def _populate_diff(pr):
-                    async with session.get(self.prs[pr]["diff_url"]) as r:
-                        r.raise_for_status()
-                        self.prs[pr]["libs"] = set()
-                        try:
-                            diff = await r.text()
-                        except UnicodeDecodeError:
-                            logging.warning("error when decoding diff at %s", self.prs[pr]["diff_url"])
-                            return
-                        for line in diff.split("\n"):
-                            if line.startswith("+++ b/recipes/") or line.startswith("--- a/recipes/"):
-                                self.prs[pr]["libs"].add(line.split("/")[2])
-                await asyncio.gather(*[asyncio.create_task(_populate_diff(pr)) for pr in self.prs])
+        for pr_number, pr in self.prs.items():
+            pr["libs"] = self._get_modified_libs_for_pr(pr_number)
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(_populate_diffs())
 
-    async def generate_matrix(self):
+    async def generate_matrix(self) -> None:  # noqa: MC0001
         res = []
         async with aiohttp.ClientSession() as session:
 
-            async def _add_package(package, repo, ref, pr = "0"):
+            async def _add_package(package: str, repo: str, ref: str, pr: str = "0") -> None:
                 version = packaging.version.Version("0.0.0")
                 folder = ""
                 async with session.get(f"https://raw.githubusercontent.com/{repo}/{ref}/recipes/{package}/config.yml") as r:
-                    if r.status  == 404:
+                    if r.status == 404:
                         return
                     r.raise_for_status()
                     config = yaml.safe_load(await r.text())
                     for v in config["versions"]:
                         try:
-                            tmpVer = packaging.version.Version(v)
-                            if tmpVer > version:
-                                version = tmpVer
+                            tmpver = packaging.version.Version(v)
+                            if tmpver > version:
+                                version = tmpver
                                 folder = config["versions"][v]["folder"]
                         except packaging.version.InvalidVersion:
                             logging.warning("Error parsing version %s for package %s in pr %s", v, package, pr)
                 if folder:
-                    res.append({
-                            'package': package,
-                            'version': str(version),
-                            'repo': repo,
-                            'ref': ref,
-                            'folder': folder,
-                            'pr': pr,
-                        })
+                    res.append({'package': package,
+                                'version': str(version),
+                                'repo': repo,
+                                'ref': ref,
+                                'folder': folder,
+                                'pr': pr})
             tasks = []
-           # for package in  r.json():
-           #     tasks.append(asyncio.create_task(_add_package(package['name'], '%s/%s' % (self.owner, self.repo), 'master')))
+            # for package in  r.json():
+            #     tasks.append(asyncio.create_task(_add_package(package['name'], '%s/%s' % (self.owner, self.repo), 'master')))
 
             for pr in self.prs.values():
                 pr_number = str(pr["number"])
@@ -112,14 +96,32 @@ class MatrixGenerator:
 
             await asyncio.gather(*tasks)
 
-
         with open("matrix.yml", "w", encoding="latin_1") as f:
             json.dump({"include": res}, f)
 
+    def _get_modified_libs_for_pr(self, pr: int) -> Set[str]:
+        res = set()
+        for file in self._make_request("GET", f"/repos/{self.owner}/{self.repo}/pulls/{pr}/files").json():
+            for field in ['filename', 'previous_filename']:
+                parts = file.get(field, '').split("/")
+                if len(parts) >= 4 and parts[0] == "recipes":
+                    res.add(f"{parts[1]}/{parts[2]}")
+        return res
+
+    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        if self.dry_run and method in ["PATCH", "POST"]:
+            return requests.Response()
+
+        r = self.session.request(method, f"https://api.github.com{url}", **kwargs)
+        r.raise_for_status()
+        if int(r.headers["X-RateLimit-Remaining"]) < 10:
+            logging.warning("%s/%s github api call used, remaining %s until %s",
+                            r.headers["X-Ratelimit-Used"], r.headers["X-RateLimit-Limit"], r.headers["X-RateLimit-Remaining"],
+                            datetime.fromtimestamp(int(r.headers["X-Ratelimit-Reset"])))
+        return r
 
 
-
-def main():
+def main() -> None:
     d = MatrixGenerator(token=os.getenv("GH_TOKEN"))
     loop = asyncio.get_event_loop()
     loop.run_until_complete(d.generate_matrix())

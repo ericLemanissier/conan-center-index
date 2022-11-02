@@ -1,36 +1,39 @@
+# pylint: disable = invalid-name, too-many-locals
+
 import os
-import yaml
 import json
 import asyncio
 import logging
 import sys
 import re
+from typing import Dict, List
+import yaml
 
 sem = asyncio.Semaphore(1)
 
-async def process_ref(package):
 
-    package_restrictions = {
-        "bacnet-stack":[],
-        "b2":[],
-        "ncurses":[],
-        "geotrans":[],
+async def process_ref(package: str) -> None: # noqa: MC0001
+
+    package_restrictions: Dict[str, List[str]] = {
+        "bacnet-stack": [],
+        "b2": [],
+        "ncurses": [],
+        "geotrans": [],
         "icu": ["70.1"],
         "cmake": ["3.22.3"],
         "glib": ["2.72.0"],
         "cppcheck": ["2.7.3"],
         "proj": ["9.0.0"],
     }
-    global sem
     async with sem:
         config_file = os.path.join(package, "config.yml")
         if not os.path.isfile(config_file):
             logging.error("no config file for %s", package)
             return
-        with open(config_file, "r") as stream:
+        with open(config_file, "r", encoding="latin_1") as stream:
             config = yaml.safe_load(stream)
 
-        p = await asyncio.create_subprocess_exec("conan", "remove", "--outdated", "%s/*" % package)
+        p = await asyncio.create_subprocess_exec("conan", "remove", "--outdated", f"{package}/*")
         await p.wait()
         if p.returncode != 0:
             logging.error("error during conan remove %s: %s", package, p.returncode)
@@ -46,17 +49,17 @@ async def process_ref(package):
                 if os.path.isfile(conandata_full_path):
                     os.remove(conandata_full_path)
                 os.rename(conandata_path, conandata_full_path)
-                with open(conandata_full_path, "r") as stream:
+                with open(conandata_full_path, "r", encoding="latin_1") as stream:
                     conandata_yml = yaml.safe_load(stream)
-                info = {}
+                info: Dict[str, Dict[str, str]] = {}
                 for entry in conandata_yml:
                     if version not in conandata_yml[entry]:
                         continue
                     info[entry] = {}
                     info[entry][version] = conandata_yml[entry][version]
-                with open(conandata_path, "w") as stream:
+                with open(conandata_path, "w", encoding="latin_1") as stream:
                     yaml.safe_dump(info, default_flow_style=False, stream=stream)
-            ref = "%s/%s@" % (package, version)
+            ref = f"{package}/{version}@"
             p = await asyncio.create_subprocess_exec("conan", "export", os.path.join(package, folder), ref)
             await p.wait()
             if p.returncode != 0:
@@ -73,28 +76,28 @@ async def process_ref(package):
             if p.returncode == 6:
                 logging.info("ignoring invalid package %s", ref)
                 continue
-            elif p.returncode == 1:
+            if p.returncode == 1:
                 logging.error("missing binary requirement of %s ?", ref)
                 continue
             if p.returncode != 0:
                 logging.error("error during conan info %s: %s", ref, p.returncode)
                 continue
 
-            with open(info_file, "r") as stream:
+            with open(info_file, "r", encoding="latin_1") as stream:
                 infos = json.load(stream)
             os.remove(info_file)
-            if any([info["id"] == "INVALID" for info in infos]):
-                logging.info("ingoring invalid package %s", ref)
+            if any(info["id"] == "INVALID" for info in infos):
+                logging.info("ignoring invalid package %s", ref)
                 continue
-            id = None
-            for info in infos:
-                if info["reference"] + "@" == ref:
-                    id = info["id"]
-            if not id:
-                logging.error("could not find %s in %s",ref, infos)
-                exit(-3)
+            bin_id = None
+            for info_ in infos:
+                if info_["reference"] + "@" == ref:
+                    bin_id = info_["id"]
+            if not bin_id:
+                logging.error("could not find %s in %s", ref, infos)
+                sys.exit(-3)
 
-            if any(["deprecated" in info for info in infos]):
+            if any("deprecated" in info for info in infos):
                 logging.info("skipping %s because it is deprecated", ref)
                 continue
 
@@ -105,7 +108,7 @@ async def process_ref(package):
             if p.returncode != 0:
                 logging.error("error during conan search %s --revisions --json %s: %s", ref, revision_file, p.returncode)
                 continue
-            with open(revision_file, "r") as stream:
+            with open(revision_file, "r", encoding="latin_1") as stream:
                 revisions = json.load(stream)
             os.remove(revision_file)
             if len(revisions) == 0:
@@ -115,7 +118,7 @@ async def process_ref(package):
             else:
                 logging.error("unexpected revisions for %s: %s", ref, revisions)
 
-            fullref = "%s#%s" % (ref, rev)
+            fullref = f"{ref}#{rev}"
 
             binaries_file = os.path.join(package, "binaries.json")
             p = await asyncio.create_subprocess_exec("conan", "search", fullref, "-r", "all", "--json", binaries_file)
@@ -124,11 +127,11 @@ async def process_ref(package):
             if p.returncode != 0:
                 logging.error("error during conan search %s -r all --json %s: %s", fullref, binaries_file, p.returncode)
                 continue
-            with open(binaries_file, "r") as stream:
+            with open(binaries_file, "r", encoding="latin_1") as stream:
                 binaries = json.load(stream)
             os.remove(binaries_file)
             assert not binaries["error"]
-            if any([p["id"] == id for r in binaries["results"] for i in r["items"] for p in i["packages"]]):
+            if any(p["id"] == bin_id for r in binaries["results"] for i in r["items"] for p in i["packages"]):
                 continue
             logging.info("no binaries for %s", fullref)
 
@@ -161,6 +164,7 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
+
     async def main():
         await asyncio.gather(*[asyncio.create_task(process_ref(filename.name)) for filename in os.scandir() if filename.is_dir() and pattern.match(filename.name)])
     loop.run_until_complete(main())
