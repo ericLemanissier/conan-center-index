@@ -166,5 +166,5 @@ if __name__ == "__main__":
     pattern = re.compile(sys.argv[1] if len(sys.argv) >= 2 else ".*")
 
     async def main():
-        await asyncio.gather(*[asyncio.create_task(process_ref(filename.name)) for filename in os.scandir() if filename.is_dir() and pattern.match(filename.name)])
+        await asyncio.gather(*[process_ref(filename.name) for filename in os.scandir() if filename.is_dir() and pattern.match(filename.name)])
     loop.run_until_complete(main())
