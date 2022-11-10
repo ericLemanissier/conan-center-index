@@ -17,7 +17,7 @@ class MatrixGenerator:
     repo: str = "conan-center-index"
     dry_run: bool = False
 
-    def __init__(self, token: str = None, user: str = None, pw: str = None):  # noqa: MC0001
+    def __init__(self, token: str = "", user: str = "", pw: str = ""):  # noqa: MC0001
         self.session = requests.session()
         if token:
             self.session.headers["Authorization"] = f"token {token}"
@@ -121,7 +121,7 @@ class MatrixGenerator:
 
 
 def main() -> None:
-    d = MatrixGenerator(token=os.getenv("GH_TOKEN"))
+    d = MatrixGenerator(token=os.getenv("GH_TOKEN", ""))
     asyncio.run(d.generate_matrix())
 
 
