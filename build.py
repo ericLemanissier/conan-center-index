@@ -12,7 +12,7 @@ import yaml
 sem = asyncio.Semaphore(1)
 
 
-async def process_ref(package: str) -> None: # noqa: MC0001
+async def process_ref(package: str) -> None:  # noqa: MC0001
 
     package_restrictions: Dict[str, List[str]] = {
         "bacnet-stack": [],

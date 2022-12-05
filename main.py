@@ -54,7 +54,6 @@ class MatrixGenerator:
         for pr_number, pr in self.prs.items():
             pr["libs"] = self._get_modified_libs_for_pr(pr_number)
 
-
     async def generate_matrix(self) -> None:  # noqa: MC0001
         res = []
         async with aiohttp.ClientSession() as session:
