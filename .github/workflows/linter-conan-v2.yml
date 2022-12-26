@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Get changed files
-        uses: tj-actions/changed-files@v32
+        uses: tj-actions/changed-files@v35
         id: changed_files
         with:
           base_sha: ${{ github.event.pull_request.base.sha }}
@@ -88,7 +88,7 @@ jobs:
           fetch-depth: 0
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v32
+        uses: tj-actions/changed-files@v35
         with:
           base_sha: ${{ github.event.pull_request.base.sha }}
           files: |
@@ -124,7 +124,7 @@ jobs:
           fetch-depth: 0
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v32
+        uses: tj-actions/changed-files@v35
         with:
           base_sha: ${{ github.event.pull_request.base.sha }}
           files: |
