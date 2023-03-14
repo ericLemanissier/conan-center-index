@@ -2,6 +2,7 @@ name: 'Package: Bug Report'
 description: 'Report a bug, something does not work as it is supposed to'
 title: '[package] <LIBRARY-NAME>/<LIBRARY-VERSION>: SHORT DESCRIPTION'
 labels: bug
+
 body:
   - type: markdown
     attributes:
