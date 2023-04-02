@@ -72,5 +72,5 @@ jobs:
         run: |
           pip install conan
           conan profile detect
-          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} --name ${{ matrix.package }} --version ${{ matrix.version }}@ -b missing -o b2/*:toolset=clang
+          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} --name ${{ matrix.package }} --version ${{ matrix.version }} -b missing -o b2/*:toolset=clang
  
