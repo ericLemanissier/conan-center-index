@@ -71,7 +71,5 @@ jobs:
         prepare: pkg install -y cmake py39-pip py39-sqlite3 python3 sudo pkgconf gmake bash perl5 p5-XML-Parser git && ln -s /usr/local/bin/perl /usr/bin/perl
         run: |
           pip install conan
-          conan config install https://github.com/conan-io/hooks.git -sf hooks -tf hooks
-          conan config set hooks.conan-center
-          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} ${{ matrix.package }}/${{ matrix.version }}@ -b missing -o b2:toolset=clang
+          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} --name ${{ matrix.package }} --version ${{ matrix.version }}@ -b missing -o b2/*:toolset=clang
  
