@@ -87,9 +87,12 @@ class MatrixGenerator:
 
             for pr in self.prs.values():
                 pr_number = str(pr["number"])
+                if not pr["head"]["repo"]:
+                    logging.warning("no repo detected for pr #%s", pr_number)
+                    continue
                 for package in pr['libs']:
-                    if not pr["head"]["repo"]:
-                        logging.warning("no repo detected for pr #%s", pr_number)
+                    if package in ["libbsd"]:
+                        logging.warning("ignoring pr #%s because package %s is in deny list", pr_number, package)
                         continue
                     tasks.append(_add_package(package, pr["head"]["repo"]["full_name"], pr["head"]["ref"], pr_number))
 
