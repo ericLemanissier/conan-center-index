@@ -951,6 +951,8 @@ Examples = bin/datadir/examples""")
 
         if self.options.qtdeclarative:
             _create_private_module("Qml", ["CorePrivate", "Qml"])
+            if self.options.gui:
+                _create_private_module("Quick", ["CorePrivate", "GuiPrivate", "QmlPrivate", "Quick"])
 
     def package_info(self):
         self.cpp_info.set_property("cmake_file_name", "Qt5")
@@ -1047,7 +1049,7 @@ Examples = bin/datadir/examples""")
             "exec_prefix=${prefix}",
         ]
         self.cpp_info.components["qtCore"].set_property("pkg_config_custom_content", "\n".join(pkg_config_vars))
-        
+
         if self.settings.os == "Windows":
             module = "WinMain"
             componentname = f"qt{module}"
@@ -1220,6 +1222,7 @@ Examples = bin/datadir/examples""")
             self.cpp_info.components["qtQmlImportScanner"].requires = _get_corrected_reqs(["Qml"])
             if self.options.gui:
                 _create_module("Quick", ["Gui", "Qml", "QmlModels"])
+                _add_build_module("qtQuick", self._cmake_qt5_private_file("Quick"))
                 if self.options.widgets:
                     _create_module("QuickWidgets", ["Gui", "Qml", "Quick", "Widgets"])
                 _create_module("QuickShapes", ["Gui", "Qml", "Quick"])
