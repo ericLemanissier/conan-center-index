@@ -14,7 +14,7 @@ jobs:
     name: Test linter changes (v2 migration)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get changed files
         uses: ./.github/actions/pr_changed_files
         id: changed_files
@@ -80,7 +80,7 @@ jobs:
     name: Lint changed conanfile.py (v2 migration)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get changed files
         id: changed-files
         uses: ./.github/actions/pr_changed_files
@@ -113,7 +113,7 @@ jobs:
     name: Lint changed test_package/conanfile.py (v2 migration)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get changed files
         id: changed-files
         uses: ./.github/actions/pr_changed_files
