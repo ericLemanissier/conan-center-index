@@ -35,9 +35,9 @@ jobs:
       REMOTE_TOKEN : ${{ secrets.REMOTE_TOKEN }}
       REMOTE_USER : ${{ secrets.REMOTE_USER }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Checkout CCI
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: conan-io/conan-center-index
         path: CCI
