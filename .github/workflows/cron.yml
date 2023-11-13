@@ -64,7 +64,7 @@ jobs:
         path: CCI
     - name: run
       id: test
-      uses: vmactions/freebsd-vm@v0
+      uses: vmactions/freebsd-vm@v1
       with:
         envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE'
         usesh: true
