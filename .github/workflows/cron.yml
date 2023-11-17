@@ -55,6 +55,7 @@ jobs:
       CXX: clang++
       CONAN_SYSREQUIRES_MODE: enabled
       MAKE: gmake
+      NOT_ON_C3I: 1
     steps:
     - name: Checkout CCI
       uses: actions/checkout@v4
@@ -66,12 +67,12 @@ jobs:
       id: test
       uses: vmactions/freebsd-vm@v1
       with:
-        envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE'
+        envs: 'CONAN_MAKE_PROGRAM CC CXX CONAN_SYSREQUIRES_MODE MAKE NOT_ON_C3I'
         usesh: true
         prepare: pkg install -y cmake py39-pip py39-sqlite3 py39-distro python3 sudo pkgconf gmake bash perl5 p5-XML-Parser git && ln -s /usr/local/bin/perl /usr/bin/perl
         run: |
           pip install distro
           pip install conan
           conan profile detect
-          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} --name ${{ matrix.package }} --version ${{ matrix.version }} -b missing -o b2/*:toolset=clang
+          conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} --name ${{ matrix.package }} --version ${{ matrix.version }} -b missing -o b2/*:toolset=clang -c tools.system.package_manager:mode=install
  
