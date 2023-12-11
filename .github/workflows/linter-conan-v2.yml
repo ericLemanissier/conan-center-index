@@ -27,7 +27,7 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd: yq '.conan.version' '.c3i/config_v1.yml'
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: steps.changed_files.outputs.any_changed == 'true'
         with:
           python-version: ${{ env.PYVER }}
@@ -93,7 +93,7 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd: yq '.conan.version' '.c3i/config_v1.yml'
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           python-version: ${{ env.PYVER }}
@@ -126,7 +126,7 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd: yq '.conan.version' '.c3i/config_v1.yml'
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: steps.changed-files.outputs.any_changed == 'true'
         with:
           python-version: ${{ env.PYVER }}
