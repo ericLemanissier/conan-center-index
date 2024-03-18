@@ -74,5 +74,8 @@ jobs:
           pip install distro
           pip install conan
           conan profile detect
+          PROFILE_PATH=$(conan profile path default)
+          echo "[platform_tool_requires]" >> $PROFILE_PATH
+          echo "cmake/3.28.1" >> $PROFILE_PATH
           conan create CCI/recipes/${{ matrix.package }}/${{ matrix.folder }} --name ${{ matrix.package }} --version ${{ matrix.version }} -b missing -o b2/*:toolset=clang -c tools.system.package_manager:mode=install
  
