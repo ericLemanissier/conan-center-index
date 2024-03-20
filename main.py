@@ -41,7 +41,7 @@ class MatrixGenerator:
                 "page": str(page)
             }).json()
             for p in results:
-                if int(p["number"]) in [13539, 16266, 18490, 19488]:
+                if int(p["number"]) in [13539, 16266, 18490, 19488, 23125]:
                     logging.warning("ignoring pr #%s because it is in deny list", p["number"])
                     continue
                 body = p["body"] or ""
