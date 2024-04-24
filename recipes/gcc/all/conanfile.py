@@ -149,6 +149,18 @@ class GccConan(ConanFile):
             keep_path=False,
         )
 
+        rm(self, "libasan.a", self.package_folder)
+        rm(self, "libatomic.a", self.package_folder)
+        rm(self, "libgfortran.a", self.package_folder)
+        rm(self, "libgomp.a", self.package_folder)
+        rm(self, "libitm.a", self.package_folder)
+        rm(self, "liblsan.a", self.package_folder)
+        rm(self, "libquadmath.a", self.package_folder)
+        rm(self, "libssp.a", self.package_folder)
+        rm(self, "libstdc++.a", self.package_folder)
+        rm(self, "libtsan.a", self.package_folder)
+        rm(self, "libubsan.a", self.package_folder)
+
     def package_info(self):
         if self.settings.os in ["Linux", "FreeBSD"]:
             self.cpp_info.system_libs.append("m")
