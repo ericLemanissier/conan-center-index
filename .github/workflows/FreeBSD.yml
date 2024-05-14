@@ -35,7 +35,7 @@ jobs:
       - name: Generate Job Matrix
         id: set-matrix
         run: |
-          python3 main.py          
+          python3 generate-matrix.py bsd          
           MATRIX=$(cat matrix.yml)
           echo "${MATRIX}"
           echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT

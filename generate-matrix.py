@@ -6,6 +6,7 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, Set, Any
+import sys
 import yaml
 import requests
 import aiohttp
@@ -17,7 +18,7 @@ class MatrixGenerator:
     repo: str = "conan-center-index"
     dry_run: bool = False
 
-    def __init__(self, token: str = "", user: str = "", pw: str = ""):  # noqa: MC0001
+    def __init__(self, keyword: str, token: str = "", user: str = "", pw: str = ""):  # noqa: MC0001
         self.session = requests.session()
         if token:
             self.session.headers["Authorization"] = f"token {token}"
@@ -45,7 +46,7 @@ class MatrixGenerator:
                     logging.warning("ignoring pr #%s because it is in deny list", p["number"])
                     continue
                 body = p["body"] or ""
-                if "bsd" in p["title"].lower() or "bsd" in body.lower():
+                if keyword in p["title"].lower() or keyword in body.lower():
                     self.prs[int(p["number"])] = p
             page += 1
             if not results:
@@ -123,7 +124,7 @@ class MatrixGenerator:
 
 
 def main() -> None:
-    d = MatrixGenerator(token=os.getenv("GH_TOKEN", ""))
+    d = MatrixGenerator(sys.argv[1], token=os.getenv("GH_TOKEN", ""))
     asyncio.run(d.generate_matrix())
 
 
