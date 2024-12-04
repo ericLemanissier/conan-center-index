@@ -1,21 +1,23 @@
 versions:
-  "7.86.0":
+  "8.10.1":
     folder: all
-  "7.85.0":
+  "8.10.0":
     folder: all
-  "7.84.0":
+  "8.9.1":
     folder: all
-  "7.83.1":
+  "8.8.0":
     folder: all
-  "7.82.0":
+  "8.6.0":
     folder: all
-  "7.80.0":
+  "8.5.0":
     folder: all
-  "7.79.1":
+  "8.4.0":
     folder: all
-  "7.78.0":
+  "8.2.1":
     folder: all
-  "7.77.0":
+  "8.1.2":
     folder: all
-  "7.76.0":
+  "8.0.1":
+    folder: all
+  "7.88.1":
     folder: all

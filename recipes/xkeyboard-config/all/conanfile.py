@@ -3,11 +3,12 @@ from conan.tools.gnu import PkgConfig
 from conan.tools.system import package_manager
 from conan.errors import ConanInvalidConfiguration
 
-required_conan_version = ">=1.47"
+required_conan_version = ">=1.50.0"
 
 
 class XkeyboardConfigConan(ConanFile):
     name = "xkeyboard-config"
+    package_type = "application"
     url = "https://github.com/conan-io/conan-center-index"
     license = "MIT"
     homepage = "https://www.freedesktop.org/wiki/Software/XKeyboardConfig/"
@@ -20,7 +21,7 @@ class XkeyboardConfigConan(ConanFile):
             raise ConanInvalidConfiguration("This recipe supports only Linux and FreeBSD")
 
     def package_id(self):
-        self.info.header_only()
+        self.info.clear()
 
     def system_requirements(self):
         apt = package_manager.Apt(self)

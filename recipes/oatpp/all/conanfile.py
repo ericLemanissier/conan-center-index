@@ -5,9 +5,10 @@ from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
 from conan.tools.files import copy, get, rmdir
 from conan.tools.microsoft import is_msvc, is_msvc_static_runtime
 from conan.tools.scm import Version
+from conan.tools.env import VirtualBuildEnv
 import os
 
-required_conan_version = ">=1.50.0"
+required_conan_version = ">=1.54.0"
 
 
 class OatppConan(ConanFile):
@@ -15,18 +16,28 @@ class OatppConan(ConanFile):
     description = "Modern Web Framework for C++"
     homepage = "https://github.com/oatpp/oatpp"
     license = "Apache-2.0"
-    topics = ("oat++", "oatpp", "web-framework")
+    topics = ("oat++", "web-framework")
     url = "https://github.com/conan-io/conan-center-index"
 
-    settings = "os", "arch", "compiler", "build_type",
+    package_type = "library"
+    settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
+        "with_test_library": [True, False],
     }
     default_options = {
         "shared": False,
         "fPIC": True,
+        "with_test_library": False,
     }
+
+    @property
+    def _version(self):
+        version = str(self.version)
+        if version.endswith(".latest"):
+            version = version[:-len(".latest")]
+        return version
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -34,23 +45,26 @@ class OatppConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
-
-    def validate(self):
-        if self.info.settings.compiler.cppstd:
-            check_min_cppstd(self, 11)
-        if self.info.settings.os == "Windows" and self.info.options.shared:
-            raise ConanInvalidConfiguration("oatpp can not be built as shared library on Windows")
-
-        if self.info.settings.compiler == "gcc" and Version(self.info.settings.compiler.version) < "5":
-            raise ConanInvalidConfiguration("oatpp requires GCC >=5")
+            self.options.rm_safe("fPIC")
 
     def layout(self):
         cmake_layout(self, src_folder="src")
 
+    def validate(self):
+        if self.settings.compiler.get_safe("cppstd"):
+            check_min_cppstd(self, 11)
+        if self.settings.os == "Windows" and self.options.shared:
+            raise ConanInvalidConfiguration("oatpp can not be built as shared library on Windows")
+
+        if self.settings.compiler == "gcc" and Version(self.settings.compiler.version) < "5":
+            raise ConanInvalidConfiguration("oatpp requires GCC >=5")
+
+    def build_requirements(self):
+        if Version(self._version) >= "1.3.0":
+            self.tool_requires("cmake/[>=3.20 <4]")
+
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)
@@ -58,9 +72,10 @@ class OatppConan(ConanFile):
         tc.variables["CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS"] = True
         if is_msvc(self) and Version(self.version) >= "1.3.0":
             tc.variables["OATPP_MSVC_LINK_STATIC_RUNTIME"] = is_msvc_static_runtime(self)
-        # Honor BUILD_SHARED_LIBS from conan_toolchain (see https://github.com/conan-io/conan/issues/11840)
-        tc.cache_variables["CMAKE_POLICY_DEFAULT_CMP0077"] = "NEW"
+        tc.variables["OATPP_LINK_TEST_LIBRARY"] = self.options.with_test_library
         tc.generate()
+        venv = VirtualBuildEnv(self)
+        venv.generate(scope="build")
 
     def build(self):
         cmake = CMake(self)
@@ -76,8 +91,8 @@ class OatppConan(ConanFile):
     def package_info(self):
         self.cpp_info.set_property("cmake_file_name", "oatpp")
 
-        include_dir = os.path.join("include", f"oatpp-{self.version}", "oatpp")
-        lib_dir = os.path.join("lib", f"oatpp-{self.version}")
+        include_dir = os.path.join("include", f"oatpp-{self._version}", "oatpp")
+        lib_dir = os.path.join("lib", f"oatpp-{self._version}")
 
         # oatpp
         self.cpp_info.components["_oatpp"].names["cmake_find_package"] = "oatpp"
@@ -87,18 +102,19 @@ class OatppConan(ConanFile):
         self.cpp_info.components["_oatpp"].libdirs = [lib_dir]
         self.cpp_info.components["_oatpp"].libs = ["oatpp"]
         if self.settings.os in ["Linux", "FreeBSD"]:
-            self.cpp_info.components["_oatpp"].system_libs = ["pthread"]
+            self.cpp_info.components["_oatpp"].system_libs = ["pthread", "m"]
         elif self.settings.os == "Windows":
             self.cpp_info.components["_oatpp"].system_libs = ["ws2_32", "wsock32"]
 
         # oatpp-test
-        self.cpp_info.components["oatpp-test"].names["cmake_find_package"] = "oatpp-test"
-        self.cpp_info.components["oatpp-test"].names["cmake_find_package_multi"] = "oatpp-test"
-        self.cpp_info.components["oatpp-test"].set_property("cmake_target_name", "oatpp-test::oatpp-test")
-        self.cpp_info.components["oatpp-test"].includedirs = [include_dir]
-        self.cpp_info.components["oatpp-test"].libdirs = [lib_dir]
-        self.cpp_info.components["oatpp-test"].libs = ["oatpp-test"]
-        self.cpp_info.components["oatpp-test"].requires = ["_oatpp"]
+        if self.options.with_test_library:
+            self.cpp_info.components["oatpp-test"].names["cmake_find_package"] = "oatpp-test"
+            self.cpp_info.components["oatpp-test"].names["cmake_find_package_multi"] = "oatpp-test"
+            self.cpp_info.components["oatpp-test"].set_property("cmake_target_name", "oatpp-test::oatpp-test")
+            self.cpp_info.components["oatpp-test"].includedirs = [include_dir]
+            self.cpp_info.components["oatpp-test"].libdirs = [lib_dir]
+            self.cpp_info.components["oatpp-test"].libs = ["oatpp-test"]
+            self.cpp_info.components["oatpp-test"].requires = ["_oatpp"]
 
         # workaround to have all components in the global target
         self.cpp_info.set_property("cmake_target_name", "oatpp::oatpp-test")

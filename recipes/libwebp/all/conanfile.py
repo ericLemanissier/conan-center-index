@@ -12,7 +12,7 @@ class LibwebpConan(ConanFile):
     name = "libwebp"
     description = "Library to encode and decode images in WebP format"
     url = "https://github.com/conan-io/conan-center-index"
-    homepage = "https://github.com/webmproject/libwebp"
+    homepage = "https://chromium.googlesource.com/webm/libwebp"
     topics = ("image", "libwebp", "webp", "decoding", "encoding")
     license = "BSD-3-Clause"
 
@@ -49,17 +49,13 @@ class LibwebpConan(ConanFile):
         cmake_layout(self, src_folder="src")
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)
         # should be an option but it doesn't work yet
         tc.variables["WEBP_ENABLE_SIMD"] = self.options.with_simd
-        if Version(self.version) >= "1.0.0":
-            tc.variables["WEBP_NEAR_LOSSLESS"] = self.options.near_lossless
-        else:
-            tc.variables["WEBP_ENABLE_NEAR_LOSSLESS"] = self.options.near_lossless
+        tc.variables["WEBP_NEAR_LOSSLESS"] = self.options.near_lossless
         tc.variables["WEBP_ENABLE_SWAP_16BIT_CSP"] = self.options.swap_16bit_csp
         # avoid finding system libs
         tc.variables["CMAKE_DISABLE_FIND_PACKAGE_GIF"] = True
@@ -78,8 +74,8 @@ class LibwebpConan(ConanFile):
             tc.variables["WEBP_BUILD_LIBWEBPMUX"] = True
         tc.variables["WEBP_BUILD_WEBPMUX"] = False
         if self.options.shared and is_msvc(self):
-          # Building a dll (see fix-dll-export patch)
-          tc.preprocessor_definitions["WEBP_DLL"] = 1
+            # Building a dll (see fix-dll-export patch)
+            tc.preprocessor_definitions["WEBP_DLL"] = 1
         tc.generate()
 
     def build(self):
@@ -104,7 +100,7 @@ class LibwebpConan(ConanFile):
         self.cpp_info.components["webpdecoder"].set_property("pkg_config_name", "libwebpdecoder")
         self.cpp_info.components["webpdecoder"].libs = ["webpdecoder"]
         if self.settings.os in ["Linux", "FreeBSD"]:
-            self.cpp_info.components["webpdecoder"].system_libs = ["pthread"]
+            self.cpp_info.components["webpdecoder"].system_libs = ["m", "pthread"]
 
         # webp
         self.cpp_info.components["webp"].set_property("cmake_target_name", "WebP::webp")
@@ -112,6 +108,16 @@ class LibwebpConan(ConanFile):
         self.cpp_info.components["webp"].libs = ["webp"]
         if self.settings.os in ["Linux", "FreeBSD"]:
             self.cpp_info.components["webp"].system_libs = ["m", "pthread"]
+
+        if Version(self.version) >= "1.3.0":
+            # sharpyuv
+            self.cpp_info.components["sharpyuv"].set_property("cmake_target_name", "WebP::sharpyuv")
+            self.cpp_info.components["sharpyuv"].set_property("pkg_config_name", "libsharpyuv")
+            self.cpp_info.components["sharpyuv"].libs = ["sharpyuv"]
+            if self.settings.os in ["Linux", "FreeBSD"]:
+                self.cpp_info.components["sharpyuv"].system_libs = ["m", "pthread"]
+            # note: webp now depends on sharpyuv
+            self.cpp_info.components["webp"].requires = ["sharpyuv"]
 
         # webpdemux
         self.cpp_info.components["webpdemux"].set_property("cmake_target_name", "WebP::webpdemux")

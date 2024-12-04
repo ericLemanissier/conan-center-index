@@ -1,37 +1,31 @@
 sources:
-  "2.5.1":
-    url: "https://github.com/odygrd/quill/archive/v2.5.1.tar.gz"
-    sha256: "62227595cc2b4c0c42ed35f17ef5b7487d8231aca9e75234a4c0e346cea19928"
-  "2.4.2":
-    url: "https://github.com/odygrd/quill/archive/v2.4.2.tar.gz"
-    sha256: "4771dc08c0ff01cea9081d645ed7cae27cfa073185c986177ef3ce13743136af"
-  "2.3.4":
-    url: "https://github.com/odygrd/quill/archive/v2.3.4.tar.gz"
-    sha256: "b44d345c07b3023fcd1b88fd9d2554429bb8cccb6285d703d0b0907d9aa85fa1"
-  "2.3.3":
-    url: "https://github.com/odygrd/quill/archive/v2.3.3.tar.gz"
-    sha256: "2979c96123a1cf1afc14a931aab7a1376986e047b0927f450093f4cbae4eb04c"
-  "2.3.2":
-    url: "https://github.com/odygrd/quill/archive/v2.3.2.tar.gz"
-    sha256: "41c3410ff0a6c0eac175dcd3f8c07d920c5a681fa6801fd3172926d8c3cbe0fc"
-  "2.2.0":
-    url: "https://github.com/odygrd/quill/archive/v2.2.0.tar.gz"
-    sha256: "6b123b60b16d41009228d907851f025c8be974d5fcf41af0b6afbe48edebbf73"
-  "2.1.0":
-    url: "https://github.com/odygrd/quill/archive/v2.1.0.tar.gz"
-    sha256: "66c59501ad827207e7d4682ccba0f1c33ca215269aa13a388df4d59ca195ee76"
-  "2.0.2":
-    url: "https://github.com/odygrd/quill/archive/v2.0.2.tar.gz"
-    sha256: "d2dc9004886b787f8357e97d2f2d0c74a460259f7f95d65ab49d060fe34a9b5c"
-  "2.0.1":
-    url: "https://github.com/odygrd/quill/archive/v2.0.1.tar.gz"
-    sha256: "39527aca74edd02d9df0bba62211df9f6d53984d4f6cca470734e19c4d8b69fb"
-  "1.7.3":
-    url: "https://github.com/odygrd/quill/archive/v1.7.3.tar.gz"
-    sha256: "3fff0c5ffb19bbde5429369079741f84a6acce3a781b504cec5e677b05461208"
-  "1.6.3":
-    url: "https://github.com/odygrd/quill/archive/v1.6.3.tar.gz"
-    sha256: "886120b084db952aafe651c64f459e69fec481b4e189c14daa8c4108afebcba3"
-  "1.5.2":
-    url: "https://github.com/odygrd/quill/archive/v1.5.2.tar.gz"
-    sha256: "e409fda0bd949e997f63de4d422a8f17ccc9cb0d58f11403bd309c7a93aa0d6b"
+  "7.5.0":
+    url: "https://github.com/odygrd/quill/releases/download/v7.5.0/quill-7.5.0.zip"
+    sha256: "cb0b7d43e54af7cb7ea912d2079eb439d185ddc5fe684f8297d28bb25015d503"
+  "7.4.0":
+    url: "https://github.com/odygrd/quill/releases/download/v7.4.0/quill-7.4.0.zip"
+    sha256: "298820c6e18e87070e01d0d11cb35de2d5007718e2a81f9ec9533b75d6233eac"
+  "7.3.0":
+    url: "https://github.com/odygrd/quill/releases/download/v7.3.0/quill-7.3.0.zip"
+    sha256: "ec58fadeecae50a331018ac0893d9d5d4dec7726cc213f9a343e12bb3fd4e50a"
+  "7.2.2":
+    url: "https://github.com/odygrd/quill/releases/download/v7.2.2/quill-7.2.2.zip"
+    sha256: "3b908f498e1a04b5bf2098108461ff2fab9c3350fccae62c96e54c0f868c00be"
+  "7.2.1":
+    url: "https://github.com/odygrd/quill/releases/download/v7.2.1/quill-7.2.1.zip"
+    sha256: "5ca27bbb8866489a9c2fb1da628d9ddfed423cbba1dd1d07c793d7a8237cfaab"
+  "7.1.0":
+    url: "https://github.com/odygrd/quill/releases/download/v7.1.0/quill-7.1.0.zip"
+    sha256: "3edd1e142ae1a5b6d548c8af5bcf4339bf5889e49ade0806a4269c9587b954ae"
+  "6.1.0":
+    url: "https://github.com/odygrd/quill/releases/download/v6.1.0/quill-6.1.0.zip"
+    sha256: "114bea9d3e4f1ef06a3c48c4e5554a1a3cba182731495e229f2d28f8aef04467"
+  "6.0.0":
+    url: "https://github.com/odygrd/quill/releases/download/v6.0.0/quill-6.0.0.zip"
+    sha256: "912de8486ce781d06e3f03c4267d112a0c7f20f93f0470f6ac66a52774c08283"
+  "4.5.0":
+    url: "https://github.com/odygrd/quill/releases/download/v4.5.0/quill-4.5.0.zip"
+    sha256: "cfd579e58c71f884835079287fb0212278de56c0fbbb1484a8e8b26a5e73642e"
+  "4.4.1":
+    url: "https://github.com/odygrd/quill/releases/download/v4.4.1/quill-v4.4.1.zip"
+    sha256: "56587af304f152445bc3594c328521666e04e580200f7a4bbc5e842fc0d7868f"

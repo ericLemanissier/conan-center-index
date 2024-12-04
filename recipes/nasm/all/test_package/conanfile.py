@@ -1,6 +1,8 @@
+import os
+
 from conan import ConanFile
 from conan.tools.build import can_run
-import os
+from conan.tools.cmake import cmake_layout
 
 
 class TestPackageConan(ConanFile):
@@ -11,15 +13,18 @@ class TestPackageConan(ConanFile):
     def build_requirements(self):
         self.tool_requires(self.tested_reference_str)
 
+    def layout(self):
+        cmake_layout(self)
+
     def test(self):
+        self.run("nasm --version")
+        asm_file = os.path.join(self.source_folder, "hello_linux.asm")
+        out_file = os.path.join(self.build_folder, "hello_linux.o")
+        self.run(f"nasm -felf64 {asm_file} -o {out_file}")
         if can_run(self):
-            self.run("nasm --version", env="conanbuild")
-            asm_file = os.path.join(self.source_folder, "hello_linux.asm")
-            out_file = os.path.join(self.build_folder, "hello_linux.o")
-            bin_file = os.path.join(self.build_folder, "hello_linux")
-            self.run(f"nasm -felf64 {asm_file} -o {out_file}", env="conanbuild")
             if self.settings.os == "Linux" and self.settings.arch == "x86_64":
                 # TODO was tools.get_env, what should it be?
                 ld = os.getenv("LD", "ld")
-                self.run(f"{ld} hello_linux.o -o {bin_file}", env="conanbuild")
+                bin_file = os.path.join(self.build_folder, "hello_linux")
+                self.run(f"{ld} hello_linux.o -o {bin_file}")
                 self.run(bin_file)

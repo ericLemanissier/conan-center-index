@@ -1,9 +1,15 @@
-from conans import ConanFile, CMake, tools
-from conans.errors import ConanInvalidConfiguration
-import functools
 import os
 
-required_conan_version = ">=1.43.0"
+from conan import ConanFile
+from conan.errors import ConanInvalidConfiguration
+from conan.tools.apple import is_apple_os
+from conan.tools.build import check_min_cppstd
+from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
+from conan.tools.env import VirtualBuildEnv
+from conan.tools.files import copy, get, rm, rmdir
+from conan.tools.scm import Version
+
+required_conan_version = ">=2.1"
 
 
 class SentryNativeConan(ConanFile):
@@ -18,6 +24,7 @@ class SentryNativeConan(ConanFile):
     license = "MIT"
     topics = ("breakpad", "crashpad", "error-reporting", "crash-reporting")
 
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -26,8 +33,9 @@ class SentryNativeConan(ConanFile):
         "transport": ["none", "curl", "winhttp"],
         "qt": [True, False],
         "with_crashpad": ["google", "sentry"],
+        "crashpad_with_tls": ["openssl", False],
         "with_breakpad": ["google", "sentry"],
-        "performance": [True, False],
+        "wer": [True, False],
     }
     default_options = {
         "shared": False,
@@ -36,160 +44,260 @@ class SentryNativeConan(ConanFile):
         "transport": "curl",  # overwritten in config_options
         "qt": False,
         "with_crashpad": "sentry",
+        "crashpad_with_tls": "openssl",
         "with_breakpad": "sentry",
-        "performance": False,
+        "wer": False,
     }
 
-    generators = "cmake", "cmake_find_package", "cmake_find_package_multi", "pkg_config"
-
     @property
-    def _source_subfolder(self):
-        return "source_subfolder"
+    def _min_cppstd(self):
+        if Version(self.version) >= "0.7.8" and self.options.get_safe("with_crashpad") == "sentry":
+            return "20"
+        else:
+            return "17"
 
     @property
     def _minimum_compilers_version(self):
+        if Version(self.version) >= "0.7.8" and self.options.get_safe("with_crashpad") == "sentry":
+            # Sentry-native 0.7.8 requires C++20: Concepts and bit_cast
+            # https://github.com/chromium/mini_chromium/blob/e49947ad445c4ed4bc1bb4ed60bbe0fe17efe6ec/base/numerics/byte_conversions.h#L88
+            return {
+                "Visual Studio": "16",
+                "msvc": "192",
+                "gcc": "11",
+                "clang": "14",
+                "apple-clang": "14",
+            }
+        minimum_gcc_version = "5"
+        if self.options.get_safe("backend") == "breakpad" or self.options.get_safe("backend") == "crashpad":
+            minimum_gcc_version = "7"
         return {
             "Visual Studio": "15",
-            "gcc": "5",
+            "msvc": "191",
+            "gcc": minimum_gcc_version,
             "clang": "3.4",
             "apple-clang": "5.1",
         }
-
-    def export_sources(self):
-        self.copy("CMakeLists.txt")
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            self.copy(patch["patch_file"])
 
     def config_options(self):
         if self.settings.os == "Windows":
             del self.options.fPIC
 
+        if self.settings.os != "Windows" or Version(self.version) < "0.6.0":
+            del self.options.wer
+
         # Configure default transport
         if self.settings.os == "Windows":
+            self.options.backend = "crashpad"
             self.options.transport = "winhttp"
-        elif self.settings.os in ("FreeBSD", "Linux") or self.settings.os == "Macos":  # Don't use tools.is_apple_os(os) here
-            self.options.transport = "curl"
-        else:
+        elif self.settings.os == "Android":
             self.options.transport = "none"
 
         # Configure default backend
-        if self.settings.os == "Windows" or self.settings.os == "Macos":  # Don't use tools.is_apple_os(os) here
-            # FIXME: for self.version < 0.4: default backend is "breakpad" when building with MSVC for Windows xp; else: backend=none
+        # See https://github.com/getsentry/sentry-native/pull/927
+        if self.settings.os == "Macos":
             self.options.backend = "crashpad"
-        elif self.settings.os in ("FreeBSD", "Linux"):
-            self.options.backend = "breakpad"
-        elif self.settings.os == "Android":
-            self.options.backend = "inproc"
-        else:
-            self.options.backend = "inproc"
+        if self.settings.os in ("FreeBSD", "Linux"):
+            self.options.backend = "breakpad" if Version(self.version) < "0.7.0" else "crashpad"
+        if self.settings.os not in ("Linux", "Android") or self.options.backend != "crashpad" or self.options.with_crashpad != "sentry":
+            del self.options.crashpad_with_tls
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
+            self.options.rm_safe("fPIC")
         if self.options.backend != "crashpad":
-            del self.options.with_crashpad
+            self.options.rm_safe("with_crashpad")
         if self.options.backend != "breakpad":
-            del self.options.with_breakpad
+            self.options.rm_safe("with_breakpad")
+
+    def layout(self):
+        cmake_layout(self, src_folder="src")
 
     def requirements(self):
         if self.options.transport == "curl":
-            self.requires("libcurl/7.80.0")
+            self.requires("libcurl/[>=7.78.0 <9]")
         if self.options.backend == "crashpad":
-            if self.options.with_crashpad == "sentry":
-                self.requires("sentry-crashpad/{}".format(self.version))
             if self.options.with_crashpad == "google":
-                self.requires("crashpad/cci.20210507")
+                self.requires("crashpad/cci.20220219")
+            else:
+                self.requires("zlib/[>=1.2.11 <2]")
+                if self.options.get_safe("crashpad_with_tls"):
+                    self.requires("openssl/[>=1.1 <4]")
         elif self.options.backend == "breakpad":
-            if self.options.with_breakpad == "sentry":
-                self.requires("sentry-breakpad/{}".format(self.version))
             if self.options.with_breakpad == "google":
                 self.requires("breakpad/cci.20210521")
-        if self.options.qt:
-            self.requires("qt/5.15.3")
-            self.requires("openssl/1.1.1n")
-            if tools.Version(self.version) < "0.4.5":
-                raise ConanInvalidConfiguration("Qt integration available from version 0.4.5")
+        if self.options.get_safe("qt"):
+            self.requires("qt/5.15.11")
+            self.requires("openssl/[>=1.1 <4]")
 
     def validate(self):
-        if self.settings.compiler.cppstd:
-            tools.check_min_cppstd(self, 14)
+        check_min_cppstd(self, self._min_cppstd)
 
         minimum_version = self._minimum_compilers_version.get(str(self.settings.compiler), False)
-        if not minimum_version:
-            self.output.warn("Compiler is unknown. Assuming it supports C++14.")
-        elif tools.Version(self.settings.compiler.version) < minimum_version:
-            raise ConanInvalidConfiguration("Build requires support for C++14. Minimum version for {} is {}"
-                .format(str(self.settings.compiler), minimum_version))
-        if self.options.backend == "inproc" and self.settings.os == "Windows" and tools.Version(self.version) < "0.4":
-            raise ConanInvalidConfiguration("The in-process backend is not supported on Windows")
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
+            raise ConanInvalidConfiguration(
+                f"{self.ref} requires C++{self._min_cppstd}, which your compiler doesn't support."
+            )
         if self.options.transport == "winhttp" and self.settings.os != "Windows":
             raise ConanInvalidConfiguration("The winhttp transport is only supported on Windows")
-        if tools.Version(self.version) >= "0.4.7" and self.settings.compiler == "apple-clang" and tools.Version(self.settings.compiler.version) < "10.0":
+        if self.settings.compiler == "apple-clang" and Version(self.settings.compiler.version) < "10.0":
             raise ConanInvalidConfiguration("apple-clang < 10.0 not supported")
-        if self.options.backend == "crashpad" and tools.Version(self.version) < "0.4.7" and self.settings.os == "Macos" and self.settings.arch == "armv8":
-            raise ConanInvalidConfiguration("This version doesn't support ARM compilation")
-
-        if self.options.performance:
-            if tools.Version(self.version) < "0.4.14" or tools.Version(self.version) > "0.4.15":
-                raise ConanInvalidConfiguration("Performance monitoring is only valid in 0.4.14 and 0.4.15")
 
     def build_requirements(self):
-        if tools.Version(self.version) >= "0.4.0" and self.settings.os == "Windows":
-            self.build_requires("cmake/3.22.0")
-        if self.options.backend == "breakpad":
-            self.build_requires("pkgconf/1.7.4")
+        if self.settings.os == "Windows":
+            self.tool_requires("cmake/[>=3.16.4 <4]")
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version], destination=self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version])
 
-    @functools.lru_cache(1)
-    def _configure_cmake(self):
-        cmake = CMake(self)
-        cmake.definitions["SENTRY_BACKEND"] = self.options.backend
-        cmake.definitions["SENTRY_CRASHPAD_SYSTEM"] = True
-        cmake.definitions["SENTRY_BREAKPAD_SYSTEM"] = True
-        cmake.definitions["SENTRY_ENABLE_INSTALL"] = True
-        cmake.definitions["SENTRY_TRANSPORT"] = self.options.transport
-        cmake.definitions["SENTRY_PIC"] = self.options.get_safe("fPIC", True)
-        cmake.definitions["SENTRY_INTEGRATION_QT"] = self.options.qt
-        cmake.definitions["SENTRY_PERFORMANCE_MONITORING"] = self.options.performance
-        cmake.configure()
-        return cmake
+    def generate(self):
+        VirtualBuildEnv(self).generate()
+        tc = CMakeToolchain(self)
+        tc.variables["SENTRY_BACKEND"] = self.options.backend
+        # See https://github.com/getsentry/sentry-native/pull/928
+        if Version(self.version) < "0.7.0" and self.options.backend == "crashpad":
+            tc.variables["SENTRY_CRASHPAD_SYSTEM"] = self.options.with_crashpad == "google"
+        if self.options.backend == "breakpad":
+            tc.variables["SENTRY_BREAKPAD_SYSTEM"] = self.options.with_breakpad == "google"
+        tc.variables["SENTRY_ENABLE_INSTALL"] = True
+        tc.variables["SENTRY_TRANSPORT"] = self.options.transport
+        tc.variables["SENTRY_PIC"] = self.options.get_safe("fPIC", True)
+        tc.variables["SENTRY_BUILD_TESTS"] = False
+        tc.variables["SENTRY_BUILD_EXAMPLES"] = False
+        tc.variables["SENTRY_INTEGRATION_QT"] = self.options.qt
+        if self.options.get_safe("wer", False):
+            tc.variables["CRASHPAD_WER_ENABLED"] = True
+        tc.generate()
+        CMakeDeps(self).generate()
 
     def build(self):
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            tools.patch(**patch)
-        cmake = self._configure_cmake()
+        cmake = CMake(self)
+        cmake.configure()
         cmake.build()
 
     def package(self):
-        self.copy("LICENSE", dst="licenses", src=self._source_subfolder)
-        cmake = self._configure_cmake()
+        copy(self, "LICENSE", src=self.source_folder, dst=os.path.join(self.package_folder, "licenses"))
+        cmake = CMake(self)
         cmake.install()
-        tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
-        tools.remove_files_by_mask(os.path.join(self.package_folder, "bin"), "*pdb")
+        rmdir(self, os.path.join(self.package_folder, "lib", "cmake"))
+        rm(self, "*pdb", os.path.join(self.package_folder, "bin"))
 
     def package_info(self):
         self.cpp_info.set_property("cmake_file_name", "sentry")
-        self.cpp_info.set_property("cmake_target_name", "sentry::sentry")
-        self.cpp_info.libs = ["sentry"]
+
+        self.cpp_info.components["sentry"].set_property("cmake_target_name", "sentry::sentry")
+        self.cpp_info.components["sentry"].libs = ["sentry"]
+
         if self.settings.os in ("Android", "FreeBSD", "Linux"):
-            self.cpp_info.exelinkflags = ["-Wl,-E,--build-id=sha1"]
-            self.cpp_info.sharedlinkflags = ["-Wl,-E,--build-id=sha1"]
+            self.cpp_info.components["sentry"].exelinkflags = ["-Wl,-E,--build-id=sha1"]
+            self.cpp_info.components["sentry"].sharedlinkflags = ["-Wl,-E,--build-id=sha1"]
         if self.settings.os in ("FreeBSD", "Linux"):
-            self.cpp_info.system_libs = ["pthread", "dl"]
+            self.cpp_info.components["sentry"].system_libs = ["pthread", "dl"]
+        elif is_apple_os(self):
+            self.cpp_info.components["sentry"].frameworks = ["CoreGraphics", "CoreText"]
         elif self.settings.os == "Android":
-            self.cpp_info.system_libs = ["dl", "log"]
+            self.cpp_info.components["sentry"].system_libs = ["dl", "log"]
         elif self.settings.os == "Windows":
-            self.cpp_info.system_libs = ["shlwapi", "dbghelp"]
-            if tools.Version(self.version) >= "0.4.7":
-                self.cpp_info.system_libs.append("Version")
+            self.cpp_info.components["sentry"].system_libs = ["shlwapi", "dbghelp", "version"]
             if self.options.transport == "winhttp":
-                self.cpp_info.system_libs.append("winhttp")
+                self.cpp_info.components["sentry"].system_libs.append("winhttp")
+        if self.options.transport == "curl":
+            self.cpp_info.components["sentry"].requires.extend(["libcurl::libcurl"])
+        if self.options.get_safe("qt"):
+            self.cpp_info.components["sentry"].requires.extend(["qt::qt", "openssl::openssl"])
 
         if not self.options.shared:
-            self.cpp_info.defines = ["SENTRY_BUILD_STATIC"]
+            self.cpp_info.components["sentry"].defines = ["SENTRY_BUILD_STATIC"]
 
-        # TODO: to remove in conan v2 once cmake_find_package* generators removed
-        self.cpp_info.names["cmake_find_package"] = "sentry"
-        self.cpp_info.names["cmake_find_package_multi"] = "sentry"
+        if self.options.backend == "breakpad" and self.options.with_breakpad == "sentry":
+            self.cpp_info.components["breakpad"].set_property("cmake_target_name", "breakpad_client")
+            self.cpp_info.components["breakpad"].libs = [] if self.options.shared else ["breakpad_client"]
+            if is_apple_os(self):
+                self.cpp_info.components["breakpad"].frameworks.append("CoreFoundation")
+            if self.settings.os in ["Linux", "FreeBSD"]:
+                self.cpp_info.components["breakpad"].system_libs.append("pthread")
+
+            self.cpp_info.components["sentry"].requires.append("breakpad")
+
+        if self.options.backend == "crashpad" and self.options.with_crashpad == "sentry":
+            # mini_chromium
+            self.cpp_info.components["crashpad_mini_chromium"].set_property("cmake_target_name", "crashpad::mini_chromium")
+            self.cpp_info.components["crashpad_mini_chromium"].libs = [] if self.options.shared else ["mini_chromium"]
+            if self.settings.os in ("Linux", "FreeBSD"):
+                self.cpp_info.components["crashpad_mini_chromium"].system_libs.append("pthread")
+            elif is_apple_os(self):
+                self.cpp_info.components["crashpad_mini_chromium"].frameworks = ["CoreFoundation", "Foundation", "Security"]
+                if self.settings.os == "Macos":
+                    self.cpp_info.components["crashpad_mini_chromium"].frameworks.extend(["ApplicationServices", "IOKit"])
+                else:  # iOS
+                    self.cpp_info.components["crashpad_mini_chromium"].frameworks.extend(["CoreGraphics", "CoreText"])
+
+            # compat
+            self.cpp_info.components["crashpad_compat"].set_property("cmake_target_name", "crashpad::compat")
+            # On Apple crashpad_compat is an interface library
+            if not is_apple_os(self):
+                self.cpp_info.components["crashpad_compat"].libs = [] if self.options.shared else ["crashpad_compat"]
+            if self.settings.os in ("Linux", "FreeBSD"):
+                self.cpp_info.components["crashpad_compat"].system_libs.append("dl")
+
+            # util
+            self.cpp_info.components["crashpad_util"].set_property("cmake_target_name", "crashpad::util")
+            self.cpp_info.components["crashpad_util"].libs = [] if self.options.shared else ["crashpad_util"]
+            self.cpp_info.components["crashpad_util"].requires = ["crashpad_compat", "crashpad_mini_chromium", "zlib::zlib"]
+            if self.settings.os in ("Linux", "FreeBSD"):
+                self.cpp_info.components["crashpad_util"].system_libs.extend(["pthread", "rt"])
+            elif self.settings.os == "Windows":
+                self.cpp_info.components["crashpad_util"].system_libs.append("winhttp")
+            elif self.settings.os == "Macos":
+                self.cpp_info.components["crashpad_util"].frameworks.extend(["CoreFoundation", "Foundation", "IOKit"])
+                self.cpp_info.components["crashpad_util"].system_libs.append("bsm")
+            if self.options.get_safe("crashpad_with_tls") == "openssl":
+                self.cpp_info.components["crashpad_util"].requires.append("openssl::openssl")
+
+            # client
+            self.cpp_info.components["crashpad_client"].set_property("cmake_target_name", "crashpad::client")
+            self.cpp_info.components["crashpad_client"].libs = [] if self.options.shared else ["crashpad_client"]
+            self.cpp_info.components["crashpad_client"].requires = ["crashpad_util", "crashpad_mini_chromium"]
+
+            self.cpp_info.components["sentry"].requires.append("crashpad_client")
+
+            # snapshot
+            self.cpp_info.components["crashpad_snapshot"].set_property("cmake_target_name", "crashpad::snapshot")
+            self.cpp_info.components["crashpad_snapshot"].libs = [] if self.options.shared else ["crashpad_snapshot"]
+            self.cpp_info.components["crashpad_snapshot"].requires = [
+                "crashpad_client", "crashpad_compat",
+                "crashpad_util", "crashpad_mini_chromium",
+            ]
+            if self.settings.os == "Windows":
+                self.cpp_info.components["snapshot"].system_libs.append("powrprof")
+
+            # minidump
+            self.cpp_info.components["crashpad_minidump"].set_property("cmake_target_name", "crashpad::minidump")
+            self.cpp_info.components["crashpad_minidump"].libs = [] if self.options.shared else ["crashpad_minidump"]
+            self.cpp_info.components["crashpad_minidump"].requires = [
+                "crashpad_compat", "crashpad_snapshot",
+                "crashpad_util", "crashpad_mini_chromium",
+            ]
+
+            if self.settings.os == "Windows":
+                # getopt
+                self.cpp_info.components["crashpad_getopt"].set_property("cmake_target_name", "crashpad::getopt")
+                self.cpp_info.components["crashpad_getopt"].libs = [] if self.options.shared else ["crashpad_getopt"]
+
+            # handler
+            self.cpp_info.components["crashpad_handler"].set_property("cmake_target_name", "crashpad::handler")
+            self.cpp_info.components["crashpad_handler"].libs = [] if self.options.shared else ["crashpad_handler_lib"]
+            self.cpp_info.components["crashpad_handler"].requires = [
+                "crashpad_compat", "crashpad_minidump", "crashpad_snapshot",
+                "crashpad_util", "crashpad_mini_chromium",
+            ]
+            if self.settings.os == "Windows":
+                self.cpp_info.components["crashpad_handler"].requires.append("crashpad_getopt")
+
+            # tools
+            self.cpp_info.components["crashpad_tools"].set_property("cmake_target_name", "crashpad::tools")
+            self.cpp_info.components["crashpad_tools"].libs = [] if self.options.shared else ["crashpad_tools"]
+
+            bin_path = os.path.join(self.package_folder, "bin")
+            self.output.info(f"Appending PATH environment variable: {bin_path}")
+            self.env_info.PATH.append(bin_path)

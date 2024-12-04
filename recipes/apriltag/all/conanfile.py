@@ -1,16 +1,24 @@
-from conans import ConanFile, tools, CMake
-from conans.errors import ConanInvalidConfiguration
+from conan import ConanFile
+from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
+from conan.tools.env import VirtualBuildEnv
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rmdir
+from conan.tools.microsoft import is_msvc
+from conan.tools.scm import Version
 import os
+
+required_conan_version = ">=1.54.0"
 
 
 class ApriltagConan(ConanFile):
     name = "apriltag"
-    description = ("AprilTag is a visual fiducial system, useful for a wide variety of tasks \
-                    including augmented reality, robotics, and camera calibration")
+    description = ("AprilTag is a visual fiducial system, useful for a wide variety of tasks"
+                   " including augmented reality, robotics, and camera calibration")
     homepage = "https://april.eecs.umich.edu/software/apriltag"
-    topics = ("conan", "apriltag", "robotics")
+    topics = ("robotics", "computer-vision", "augmented-reality", "camera-calibration")
     license = "BSD-2-Clause"
     url = "https://github.com/conan-io/conan-center-index"
+    package_type = "library"
+    settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
@@ -19,16 +27,9 @@ class ApriltagConan(ConanFile):
         "shared": False,
         "fPIC": True,
     }
-    settings = "os", "arch", "compiler", "build_type"
 
-    generators = "cmake"
-    exports_sources = "CMakeLists.txt", "patches/*"
-
-    _cmake = None
-
-    @property
-    def _source_subfolder(self):
-        return "source_subfolder"
+    def export_sources(self):
+        export_conandata_patches(self)
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -36,45 +37,63 @@ class ApriltagConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
-        del self.settings.compiler.libcxx
-        del self.settings.compiler.cppstd
+            self.options.rm_safe("fPIC")
+        self.settings.rm_safe("compiler.cppstd")
+        self.settings.rm_safe("compiler.libcxx")
 
-    def validate(self):
-        if self.settings.os != "Linux":
-            raise ConanInvalidConfiguration("Apriltag officially supported only on Linux")
+    def layout(self):
+        cmake_layout(self, src_folder="src")
+
+    def requirements(self):
+        if is_msvc(self) and Version(self.version) < "3.3.0":
+            self.requires("pthreads4w/3.0.0", transitive_headers=True)
+
+    def build_requirements(self):
+        if Version(self.version) >= "3.4.0":
+            self.tool_requires("cmake/[>=3.16 <4]")
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version])
-        extracted_dir = self.name + "-" + self.version
-        os.rename(extracted_dir, self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
-    def _configure_cmake(self):
-        if self._cmake:
-            return self._cmake
-        self._cmake = CMake(self)
-        self._cmake.configure()
-        return self._cmake
+    def generate(self):
+        VirtualBuildEnv(self).generate()
+        tc = CMakeToolchain(self)
+        tc.cache_variables["BUILD_EXAMPLES"] = False
+        tc.variables["BUILD_PYTHON_WRAPPER"] = False
+        if Version(self.version) < "3.4.0":
+            # Newer versions set it in the project CMakelists.txt
+            tc.variables["CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS"] = True
+        if self.settings.os == "Windows":
+            tc.preprocessor_definitions["NOMINMAX"] = ""
+        tc.generate()
+        if is_msvc(self) and Version(self.version) < "3.3.0":
+            deps = CMakeDeps(self)
+            deps.generate()
 
     def build(self):
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            tools.patch(**patch)
-        cmake = self._configure_cmake()
+        apply_conandata_patches(self)
+        cmake = CMake(self)
+        cmake.configure()
         cmake.build()
 
     def package(self):
-        self.copy("LICENSE.md", src=self._source_subfolder, dst="licenses")
-        cmake = self._configure_cmake()
+        copy(self, "LICENSE.md", self.source_folder, os.path.join(self.package_folder, "licenses"))
+        cmake = CMake(self)
         cmake.install()
-        tools.rmdir(os.path.join(self.package_folder, "share"))
-        tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
-        tools.rmdir(os.path.join(self.package_folder, "bin"))
+        rmdir(self, os.path.join(self.package_folder, "share"))
+        rmdir(self, os.path.join(self.package_folder, "lib", "pkgconfig"))
 
     def package_info(self):
-        self.cpp_info.names["cmake_find_package"] = "apriltag"
-        self.cpp_info.names["cmake_find_package_multi"] = "apriltag"
-
-        self.cpp_info.libs = ["apriltag"]
-        if self.settings.os == "Linux":
+        self.cpp_info.set_property("cmake_file_name", "apriltag")
+        self.cpp_info.set_property("cmake_target_name", "apriltag::apriltag")
+        self.cpp_info.set_property("pkg_config_name", "apriltag")
+        suffix = ""
+        if self.settings.build_type == "Debug" and Version(self.version) >= "3.2.0":
+            suffix = "d"
+        self.cpp_info.libs = ["apriltag" + suffix]
+        self.cpp_info.includedirs.append(os.path.join("include", "apriltag"))
+        if self.settings.os in ["Linux", "FreeBSD"]:
             self.cpp_info.system_libs = ["m", "pthread"]
-        self.cpp_info.includedirs.append(os.path.join("include","apriltag"))
+        elif self.settings.os == "Windows":
+            self.cpp_info.system_libs = ["winmm"]
+            self.cpp_info.defines.append("NOMINMAX")

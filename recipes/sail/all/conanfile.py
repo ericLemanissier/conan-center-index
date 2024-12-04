@@ -1,12 +1,15 @@
-from conan.tools.files import rename
-from conans import ConanFile, CMake, tools
-import functools
+from conan import ConanFile
+from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
+from conan.tools.files import copy, get, rename, rmdir
+from conan.tools.microsoft import is_msvc
+from conan.tools.scm import Version
 import os
 
-required_conan_version = ">=1.43.0"
+required_conan_version = ">=1.53.0"
 
 class SAILConan(ConanFile):
     name = "sail"
+    package_type = "library"
     description = "The missing small and fast image decoding library for humans (not for machines)"
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://sail.software"
@@ -17,116 +20,109 @@ class SAILConan(ConanFile):
         "shared": [True, False],
         "fPIC": [True, False],
         "thread_safe": [True, False],
-        "with_avif": [True, False],
-        "with_gif": [True, False],
-        "with_jpeg2000": [True, False],
-        "with_jpeg": [True, False],
-        "with_png": [True, False],
-        "with_tiff": [True, False],
-        "with_webp": [True, False],
+        "with_highest_priority_codecs": [True, False],
+        "with_high_priority_codecs": [True, False],
+        "with_medium_priority_codecs": [True, False],
+        "with_low_priority_codecs": [True, False],
+        "with_lowest_priority_codecs": [True, False],
     }
     default_options = {
         "shared": False,
         "fPIC": True,
         "thread_safe": True,
-        "with_avif": True,
-        "with_gif": True,
-        "with_jpeg2000": True,
-        "with_jpeg": True,
-        "with_png": True,
-        "with_tiff": True,
-        "with_webp": True,
+        "with_highest_priority_codecs": True,
+        "with_high_priority_codecs": True,
+        "with_medium_priority_codecs": True,
+        "with_low_priority_codecs": True,
+        "with_lowest_priority_codecs": True,
     }
-    generators = "cmake", "cmake_find_package", "cmake_find_package_multi"
-
-    @property
-    def _source_subfolder(self):
-        return "src"
-
-    @property
-    def _build_subfolder(self):
-        return "build"
-
-    def export_sources(self):
-        self.copy("CMakeLists.txt")
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            self.copy(patch["patch_file"])
+    options_description = {
+        "with_highest_priority_codecs": "Enable codecs: GIF, JPEG, PNG, TIFF",
+        "with_high_priority_codecs": "Enable codecs: BMP, SVG",
+        "with_medium_priority_codecs": "Enable codecs: AVIF, JPEG2000, JPEGXL, WEBL",
+        "with_low_priority_codecs": "Enable codecs: ICO, PCX, PNM, PSD, QOI, TGA",
+        "with_lowest_priority_codecs": "Enable codecs: WAL, XBM",
+    }
 
     def config_options(self):
         if self.settings.os == "Windows":
-            del self.options.fPIC
+            self.options.rm_safe("fPIC")
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
+            self.options.rm_safe("fPIC")
 
     def requirements(self):
-        if self.options.with_avif:
-            self.requires("libavif/0.9.3")
-        if self.options.with_gif:
-            self.requires("giflib/5.2.1")
-        if self.options.with_jpeg2000:
-            self.requires("jasper/2.0.33")
-        if self.options.with_jpeg:
-            self.requires("libjpeg/9d")
-        if self.options.with_png:
-            self.requires("libpng/1.6.37")
-        if self.options.with_tiff:
-            self.requires("libtiff/4.3.0")
-        if self.options.with_webp:
-            self.requires("libwebp/1.2.2")
+        if self.options.with_highest_priority_codecs:
+            self.requires("giflib/5.2.2")
+            self.requires("libjpeg/9e")
+            self.requires("libpng/[>=1.6 <2]")
+            self.requires("libtiff/4.6.0")
+        if self.options.with_high_priority_codecs:
+            if Version(self.version) >= "0.9.1":
+                self.requires("nanosvg/cci.20231025")
+        if self.options.with_medium_priority_codecs:
+            self.requires("libavif/1.0.4")
+            self.requires("jasper/4.2.0")
+            self.requires("libjxl/0.8.2")
+            self.requires("libwebp/1.3.2")
+
+    def layout(self):
+        cmake_layout(self, src_folder="src")
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version],
-                  strip_root=True, destination=self._source_subfolder)
+        get(self, **self.conan_data["sources"][self.version],
+            strip_root=True, destination=self.source_folder)
 
-    @functools.lru_cache(1)
-    def _configure_cmake(self):
-        except_codecs = []
+    def generate(self):
+        only_codecs = []
 
-        if not self.options.with_avif:
-            except_codecs.append("AVIF")
-        if not self.options.with_gif:
-            except_codecs.append("GIF")
-        if not self.options.with_jpeg2000:
-            except_codecs.append("JPEG2000")
-        if not self.options.with_jpeg:
-            except_codecs.append("JPEG")
-        if not self.options.with_png:
-            except_codecs.append("PNG")
-        if not self.options.with_tiff:
-            except_codecs.append("TIFF")
-        if not self.options.with_webp:
-            except_codecs.append("WEBP")
+        if self.options.with_highest_priority_codecs:
+            only_codecs.append("highest-priority")
+        if self.options.with_high_priority_codecs:
+            only_codecs.append("high-priority")
+        if self.options.with_medium_priority_codecs:
+            only_codecs.append("medium-priority")
+        if self.options.with_low_priority_codecs:
+            only_codecs.append("low-priority")
+        if self.options.with_lowest_priority_codecs:
+            only_codecs.append("lowest-priority")
 
-        cmake = CMake(self)
-        cmake.definitions["SAIL_BUILD_APPS"] = False
-        cmake.definitions["SAIL_BUILD_EXAMPLES"] = False
-        cmake.definitions["SAIL_BUILD_TESTS"] = False
-        cmake.definitions["SAIL_COMBINE_CODECS"] = True
-        cmake.definitions["SAIL_EXCEPT_CODECS"] = ";".join(except_codecs)
-        cmake.definitions["SAIL_INSTALL_PDB"] = False
-        cmake.definitions["SAIL_THREAD_SAFE"] = self.options.thread_safe
-        cmake.configure(build_folder=self._build_subfolder)
+        tc = CMakeToolchain(self)
+        tc.variables["BUILD_TESTING"]       = False
+        tc.variables["SAIL_BUILD_APPS"]     = False
+        tc.variables["SAIL_BUILD_EXAMPLES"] = False
+        tc.variables["SAIL_COMBINE_CODECS"] = True
+        tc.variables["SAIL_ENABLE_OPENMP"]  = False
+        tc.variables["SAIL_ONLY_CODECS"]    = ";".join(only_codecs)
+        # SVG with nanosvg is supported in >= 0.9.1
+        if Version(self.version) < "0.9.1":
+            tc.variables["SAIL_DISABLE_CODECS"] = "svg"
+        tc.variables["SAIL_INSTALL_PDB"]    = False
+        tc.variables["SAIL_THREAD_SAFE"]    = self.options.thread_safe
+        # TODO: Remove after fixing https://github.com/conan-io/conan/issues/12012
+        tc.cache_variables["CMAKE_TRY_COMPILE_CONFIGURATION"] = str(self.settings.build_type)
+        tc.generate()
 
-        return cmake
+        deps = CMakeDeps(self)
+        deps.generate()
 
     def build(self):
-        for patch in self.conan_data.get("patches", {}).get(self.version, []):
-            tools.patch(**patch)
-
-        cmake = self._configure_cmake()
+        cmake = CMake(self)
+        cmake.configure()
         cmake.build()
 
     def package(self):
-        self.copy("LICENSE.txt",       src=self._source_subfolder, dst="licenses")
-        self.copy("LICENSE.INIH.txt",  src=self._source_subfolder, dst="licenses")
-        self.copy("LICENSE.MUNIT.txt", src=self._source_subfolder, dst="licenses")
-        cmake = self._configure_cmake()
+        copy(self, "LICENSE.txt",       self.source_folder, os.path.join(self.package_folder, "licenses"))
+        copy(self, "LICENSE.INIH.txt",  self.source_folder, os.path.join(self.package_folder, "licenses"))
+        copy(self, "LICENSE.MUNIT.txt", self.source_folder, os.path.join(self.package_folder, "licenses"))
+
+        cmake = CMake(self)
         cmake.install()
+
         # Remove CMake and pkg-config rules
-        tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
-        tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
+        rmdir(self, os.path.join(self.package_folder, "lib", "cmake"))
+        rmdir(self, os.path.join(self.package_folder, "lib", "pkgconfig"))
         # Move icons
         rename(self, os.path.join(self.package_folder, "share"),
                      os.path.join(self.package_folder, "res"))
@@ -151,19 +147,18 @@ class SAILConan(ConanFile):
         self.cpp_info.components["sail-codecs"].names["cmake_find_package_multi"] = "SailCodecs"
         self.cpp_info.components["sail-codecs"].libs = ["sail-codecs"]
         self.cpp_info.components["sail-codecs"].requires = ["sail-common"]
-        if self.options.with_avif:
-            self.cpp_info.components["sail-codecs"].requires.append("libavif::libavif")
-        if self.options.with_gif:
+
+        if self.options.with_highest_priority_codecs:
             self.cpp_info.components["sail-codecs"].requires.append("giflib::giflib")
-        if self.options.with_jpeg2000:
-            self.cpp_info.components["sail-codecs"].requires.append("jasper::jasper")
-        if self.options.with_jpeg:
             self.cpp_info.components["sail-codecs"].requires.append("libjpeg::libjpeg")
-        if self.options.with_png:
             self.cpp_info.components["sail-codecs"].requires.append("libpng::libpng")
-        if self.options.with_tiff:
             self.cpp_info.components["sail-codecs"].requires.append("libtiff::libtiff")
-        if self.options.with_webp:
+            if Version(self.version) >= "0.9.1":
+                self.cpp_info.components["sail-codecs"].requires.append("nanosvg::nanosvg")
+        if self.options.with_medium_priority_codecs:
+            self.cpp_info.components["sail-codecs"].requires.append("libavif::libavif")
+            self.cpp_info.components["sail-codecs"].requires.append("jasper::jasper")
+            self.cpp_info.components["sail-codecs"].requires.append("libjxl::libjxl")
             self.cpp_info.components["sail-codecs"].requires.append("libwebp::libwebp")
 
         self.cpp_info.components["libsail"].set_property("cmake_target_name", "SAIL::Sail")

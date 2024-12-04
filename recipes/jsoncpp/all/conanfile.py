@@ -2,6 +2,7 @@ from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
 from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, replace_in_file, save
 from conan.tools.scm import Version
+from conan.tools.microsoft import is_msvc
 import os
 import textwrap
 
@@ -10,12 +11,12 @@ required_conan_version = ">=1.53.0"
 
 class JsoncppConan(ConanFile):
     name = "jsoncpp"
-    license = "MIT"
-    homepage = "https://github.com/open-source-parsers/jsoncpp"
-    url = "https://github.com/conan-io/conan-center-index"
-    topics = ("json", "parser", "config")
     description = "A C++ library for interacting with JSON."
-
+    license = "MIT"
+    url = "https://github.com/conan-io/conan-center-index"
+    homepage = "https://github.com/open-source-parsers/jsoncpp"
+    topics = ("json", "parser", "config")
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -41,8 +42,7 @@ class JsoncppConan(ConanFile):
         cmake_layout(self, src_folder="src")
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)
@@ -70,7 +70,7 @@ class JsoncppConan(ConanFile):
 
     def _patch_sources(self):
         apply_conandata_patches(self)
-        if self.settings.compiler == "Visual Studio" and self.settings.compiler.version == "11":
+        if is_msvc(self) and str(self.settings.compiler.version) in ("11", "170"):
             replace_in_file(self, os.path.join(self.source_folder, "include", "json", "value.h"),
                                   "explicit operator bool()",
                                   "operator bool()")
@@ -123,6 +123,8 @@ class JsoncppConan(ConanFile):
         self.cpp_info.libs = ["jsoncpp"]
         if self.settings.os == "Windows" and self.options.shared:
             self.cpp_info.defines.append("JSON_DLL")
+        if self.settings.os in ["Linux", "FreeBSD"]:
+            self.cpp_info.system_libs.append("m")
 
         # TODO: to remove in conan v2 once legacy generators removed
         self.cpp_info.build_modules["cmake_find_package"] = [self._module_file_rel_path]

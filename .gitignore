@@ -1,11 +1,15 @@
 # Conan specific
 **/test_package/build/
+**/test_package/build-*/
 **/test_package/test_output/
 conan.lock
+conanbuildinfo.cmake
 conanbuildinfo.txt
 conaninfo.txt
 graph_info.json
 build/
+.conanrunner/
+.conanrc
 
 # CMake
 CMakeUserPresets.json

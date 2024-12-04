@@ -17,6 +17,7 @@ class Sqlite3Conan(ConanFile):
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://www.sqlite.org"
     topics = ("sqlite", "database", "sql", "serverless")
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -34,6 +35,7 @@ class Sqlite3Conan(ConanFile):
         "enable_preupdate_hook": [True, False],
         "enable_rtree": [True, False],
         "use_alloca": [True, False],
+        "use_uri": [True, False],
         "omit_load_extension": [True, False],
         "omit_deprecated": [True, False],
         "enable_math_functions": [True, False],
@@ -63,6 +65,7 @@ class Sqlite3Conan(ConanFile):
         "enable_preupdate_hook": False,
         "enable_rtree": True,
         "use_alloca": False,
+        "use_uri": False,
         "omit_load_extension": False,
         "omit_deprecated": False,
         "enable_math_functions": True,
@@ -99,16 +102,15 @@ class Sqlite3Conan(ConanFile):
         cmake_layout(self, src_folder="src")
 
     def validate(self):
-        if self.info.options.build_executable:
-            if not self.info.options.enable_default_vfs:
+        if self.options.build_executable:
+            if not self.options.enable_default_vfs:
                 # Need to provide custom VFS code: https://www.sqlite.org/custombuild.html
                 raise ConanInvalidConfiguration("build_executable=True cannot be combined with enable_default_vfs=False")
-            if self.info.options.omit_load_extension:
+            if self.options.omit_load_extension:
                 raise ConanInvalidConfiguration("build_executable=True requires omit_load_extension=True")
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)
@@ -130,6 +132,7 @@ class Sqlite3Conan(ConanFile):
         tc.variables["ENABLE_UNLOCK_NOTIFY"] = self.options.enable_unlock_notify
         tc.variables["ENABLE_DEFAULT_SECURE_DELETE"] = self.options.enable_default_secure_delete
         tc.variables["USE_ALLOCA"] = self.options.use_alloca
+        tc.variables["USE_URI"] = self.options.use_uri
         tc.variables["OMIT_LOAD_EXTENSION"] = self.options.omit_load_extension
         tc.variables["OMIT_DEPRECATED"] = self.options.omit_deprecated
         if self._has_enable_math_function_option:
@@ -185,7 +188,7 @@ class Sqlite3Conan(ConanFile):
 
     @property
     def _module_file_rel_path(self):
-        return os.path.join("lib", "cmake", "conan-official-{}-variables.cmake".format(self.name))
+        return os.path.join("lib", "cmake", f"conan-official-{self.name}-variables.cmake")
 
     def package_info(self):
         self.cpp_info.set_property("cmake_find_mode", "both")
@@ -208,11 +211,6 @@ class Sqlite3Conan(ConanFile):
             if self.options.shared:
                 self.cpp_info.components["sqlite"].defines.append("SQLITE_API=__declspec(dllimport)")
 
-        if self.options.build_executable:
-            bin_path = os.path.join(self.package_folder, "bin")
-            self.output.info("Appending PATH env var with : {}".format(bin_path))
-            self.env_info.PATH.append(bin_path)
-
         # TODO: to remove in conan v2 once cmake_find_package_* generators removed
         self.cpp_info.filenames["cmake_find_package"] = "SQLite3"
         self.cpp_info.filenames["cmake_find_package_multi"] = "SQLite3"
@@ -224,3 +222,5 @@ class Sqlite3Conan(ConanFile):
         self.cpp_info.components["sqlite"].build_modules["cmake_find_package"] = [self._module_file_rel_path]
         self.cpp_info.components["sqlite"].set_property("cmake_target_name", "SQLite::SQLite3")
         self.cpp_info.components["sqlite"].set_property("pkg_config_name", "sqlite3")
+        if self.options.build_executable:
+            self.env_info.PATH.append(os.path.join(self.package_folder, "bin"))

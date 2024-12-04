@@ -4,7 +4,6 @@ from conan.tools.build import check_min_cppstd
 from conan.tools.files import get, copy, rmdir
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 from conan.tools.scm import Version
-from conan.tools.microsoft import is_msvc, check_min_vs
 
 import os
 
@@ -17,6 +16,7 @@ class DawJsonLinkConan(ConanFile):
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/beached/daw_json_link"
     topics = ("json", "parse", "json-parser", "serialization", "constexpr", "header-only")
+    package_type = "header-library"
     settings = "os", "arch", "compiler", "build_type"
     no_copy_source = True
     short_paths = True
@@ -28,6 +28,8 @@ class DawJsonLinkConan(ConanFile):
     @property
     def _compilers_minimum_version(self):
         return {
+            "Visual Studio": "16",
+            "msvc": "192",
             "gcc": "8",
             "clang": "7",
             "apple-clang": "12",
@@ -37,8 +39,10 @@ class DawJsonLinkConan(ConanFile):
         cmake_layout(self, src_folder="src")
 
     def requirements(self):
-        self.requires("daw_header_libraries/2.76.3")
-        self.requires("daw_utf_range/2.2.3")
+        corresponding_daw_header_version = self.conan_data["daw_headers_mapping"][self.version]
+        self.requires(f"daw_header_libraries/{corresponding_daw_header_version}")
+        corresponding_daw_utf_version = self.conan_data["daw_utf_mapping"][self.version]
+        self.requires(f"daw_utf_range/{corresponding_daw_utf_version}")
 
     def package_id(self):
         self.info.clear()
@@ -46,16 +50,14 @@ class DawJsonLinkConan(ConanFile):
     def validate(self):
         if self.settings.compiler.get_safe("cppstd"):
             check_min_cppstd(self, self._minimum_cpp_standard)
-        check_min_vs(self, 192)
-        if not is_msvc(self):
-            minimum_version = self._compilers_minimum_version.get(str(self.settings.compiler), False)
-            if minimum_version and Version(self.settings.compiler.version) < minimum_version:
-                raise ConanInvalidConfiguration(
-                    f"{self.ref} requires C++{self._minimum_cpp_standard}, which your compiler does not support."
-                )
+        minimum_version = self._compilers_minimum_version.get(str(self.settings.compiler), False)
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
+            raise ConanInvalidConfiguration(
+                f"{self.ref} requires C++{self._minimum_cpp_standard}, which your compiler does not support."
+            )
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version], destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)

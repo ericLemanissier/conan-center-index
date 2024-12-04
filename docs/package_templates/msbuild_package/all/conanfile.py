@@ -1,58 +1,60 @@
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
-from conan.tools.microsoft import is_msvc, vs_layout, MSBuildDeps, MSBuildToolchain, MSBuild, VCVars
-from conan.tools.files import apply_conandata_patches, export_conandata_patches, get, copy, rm, replace_in_file
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get
+from conan.tools.layout import basic_layout
+from conan.tools.microsoft import MSBuild, MSBuildDeps, MSBuildToolchain, is_msvc
 import os
 
 
-required_conan_version = ">=1.53.0"
+required_conan_version = ">=2.0"
 
 
 class PackageConan(ConanFile):
     name = "package"
     description = "short description"
     # Use short name only, conform to SPDX License List: https://spdx.org/licenses/
-    # In case not listed there, use "LicenseRef-<license-file-name>"
+    # In case not listed there, use "DocumentRef-<license-file-name>:LicenseRef-<package-name>"
     license = ""
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/project/package"
     # no "conan" and project name in topics. Use topics from the upstream listed on GH
     topics = ("topic1", "topic2", "topic3")
+    # package_type should usually be "library", "shared-library" or "static-library"
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
-        "fPIC": [True, False],
     }
     default_options = {
         "shared": False,
-        "fPIC": True,
     }
 
     # no exports_sources attribute, but export_sources(self) method instead
-    # this allows finer grain exportation of patches per version
     def export_sources(self):
         export_conandata_patches(self)
 
-    def config_options(self):
-        if self.settings.os == "Windows":
-            del self.options.fPIC
-
     def configure(self):
-        if self.options.shared:
-            self.options.rm_safe("fPIC")
-        # for plain C projects only
-        self.settings.rm_safe("compiler.libcxx")
+        # for plain C projects only. Otherwise, this method is not needed
         self.settings.rm_safe("compiler.cppstd")
+        self.settings.rm_safe("compiler.libcxx")
 
     def layout(self):
-        vs_layout(self)
+        basic_layout(self, src_folder="src")
 
     def requirements(self):
-        # prefer self.requires method instead of requires attribute
+        # Prefer self.requirements() method instead of self.requires attribute.
         self.requires("dependency/0.8.1")
+        if self.options.with_foobar:
+            # used in foo/baz.hpp:34
+            self.requires("foobar/0.1.0")
+        # A small number of dependencies on CCI are allowed to use version ranges.
+        # See https://github.com/conan-io/conan-center-index/blob/master/docs/adding_packages/dependencies.md#version-ranges
+        self.requires("openssl/[>=1.1 <4]")
 
     def validate(self):
-        # in case it does not work in another configuration, it should validated here too
+        # in case it does not work in another configuration, it should be validated here too
+        # Always comment the reason including the upstream issue.
+        # INFO: Upstream does not support DLL: See <URL>
         if not is_msvc(self):
             raise ConanInvalidConfiguration(f"{self.ref} can be built only by Visual Studio and msvc.")
 
@@ -62,45 +64,43 @@ class PackageConan(ConanFile):
 
     def source(self):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
+        # apply patches listed in conandata.yml
+        # Using patches is always the last resort to fix issues. If possible, try to fix the issue in the upstream project.
+        apply_conandata_patches(self)
+
+    @property
+    def _msbuild_configuration(self):
+        # Customize to Release when RelWithDebInfo or MinSizeRel, if upstream build files
+        # don't have RelWithDebInfo and MinSizeRel.
+        # Moreover:
+        # - you may have to change these values if upstream build file uses custom configuration names.
+        # - configuration of MSBuildToolchain/MSBuildDeps & build_type of MSBuild may have to be different.
+        #   Its unusual, but it happens when there is a preSolution/postSolution mapping with different names.
+        #   * build_type attribute of MSBuild should match preSolution
+        #   * configuration attribute of MSBuildToolchain/MSBuildDeps should match postSolution
+        return "Debug" if self.settings.build_type == "Debug" else "Release"
 
     def generate(self):
         tc = MSBuildToolchain(self)
-        tc.generate()
-        tc = MSBuildDeps(self)
-        tc.generate()
-        tc = VCVars(self)
+        tc.configuration = self._msbuild_configuration
         tc.generate()
 
-    def _patch_sources(self):
-        apply_conandata_patches(self)
-        # remove bundled xxhash
-        rm(self, "whateer.*", os.path.join(self.source_folder, "lib"))
-        replace_in_file(self, os.path.join(self.source_folder, "CMakeLists.txt"), "...", "")
+        # If there are requirements
+        deps = MSBuildDeps(self)
+        deps.configuration = self._msbuild_configuration
+        deps.generate()
 
     def build(self):
-        self._patch_sources()  # It can be apply_conandata_patches(self) only in case no more patches are needed
         msbuild = MSBuild(self)
-        # customize to Release when RelWithDebInfo
-        msbuild.build_type = "Debug" if self.settings.build_type == "Debug" else "Release"
-        # use Win32 instead of the default value when building x86
-        msbuild.platform = "Win32" if self.settings.arch == "x86" else msbuild.platform
+        msbuild.build_type = self._msbuild_configuration
         # customize according the solution file and compiler version
         msbuild.build(sln="project_2017.sln")
 
     def package(self):
-        copy(self, pattern="LICENSE", dst=os.path.join(self.package_folder, "licenses"), src=self.source_folder)
-        copy(
-            self, pattern="*.lib", dst=os.path.join(self.package_folder, "lib"), src=self.build_folder, keep_path=False
-        )
-        copy(
-            self, pattern="*.dll", dst=os.path.join(self.package_folder, "bin"), src=self.build_folder, keep_path=False
-        )
-        copy(
-            self,
-            pattern="*.h",
-            dst=os.path.join(self.package_folder, "include"),
-            src=os.path.join(self.source_folder, "include"),
-        )
+        copy(self, "LICENSE", self.source_folder, os.path.join(self.package_folder, "licenses"))
+        copy(self, "*.lib", self.source_folder, os.path.join(self.package_folder, "lib"), keep_path=False)
+        copy(self, "*.dll", self.source_folder, os.path.join(self.package_folder, "bin"), keep_path=False)
+        copy(self, "*.h", os.path.join(self.source_folder, "include"), os.path.join(self.package_folder, "include"))
 
     def package_info(self):
         self.cpp_info.libs = ["package_lib"]

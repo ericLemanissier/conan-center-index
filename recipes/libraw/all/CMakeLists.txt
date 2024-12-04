@@ -1,57 +1,83 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.8)
+project(LibRaw LANGUAGES CXX)
 
-project(LibRaw)
+option(LIBRAW_BUILD_THREAD_SAFE "Build raw_r library with -pthread enabled" OFF)
+option(LIBRAW_WITH_JPEG "Build with libjpeg" ON)
+option(LIBRAW_WITH_LCMS "Build with LCMS" ON)
+option(LIBRAW_WITH_JASPER "Build with Jasper" ON)
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
+if(RAW_LIB_VERSION_STRING VERSION_LESS 0.21)
+    set(libraw_LIB_SRCS ${LIBRAW_SRC_DIR}/internal/dcraw_common.cpp
+                        ${LIBRAW_SRC_DIR}/internal/dcraw_fileio.cpp
+                        ${LIBRAW_SRC_DIR}/internal/demosaic_packs.cpp
+                        ${LIBRAW_SRC_DIR}/src/libraw_cxx.cpp
+                        ${LIBRAW_SRC_DIR}/src/libraw_c_api.cpp
+                        ${LIBRAW_SRC_DIR}/src/libraw_datastream.cpp
+    )
+else()
+    file(GLOB_RECURSE libraw_LIB_SRCS CONFIGURE_DEPENDS "${LIBRAW_SRC_DIR}/src/*.cpp")
 
-file(GLOB_RECURSE headers "source_subfolder/libraw/*.h")
-
-set(sources
-    "source_subfolder/src/libraw_c_api.cpp"
-    "source_subfolder/src/libraw_cxx.cpp"
-    "source_subfolder/src/libraw_datastream.cpp"
-    "source_subfolder/internal/dcraw_common.cpp"
-    "source_subfolder/internal/dcraw_fileio.cpp"
-    "source_subfolder/internal/demosaic_packs.cpp"
-)
-
-if(WIN32)
-    add_definitions(-DWIN32)
-
-    if(BUILD_SHARED_LIBS)
-        add_definitions(-DLIBRAW_BUILDLIB)
-    else()
-        add_definitions(-DLIBRAW_NODLL)
-    endif()
+    # Exclude placeholder (stub) implementations
+    file(GLOB_RECURSE exclude_libraw_LIB_SRCS CONFIGURE_DEPENDS "${LIBRAW_SRC_DIR}/src/*_ph.cpp")
+    list(REMOVE_ITEM libraw_LIB_SRCS ${exclude_libraw_LIB_SRCS})
 endif()
 
-if (TARGET CONAN_PKG::libjpeg OR TARGET CONAN_PKG::libjpeg-turbo)
-    add_definitions(-DUSE_JPEG -DUSE_JPEG8)
+if(LIBRAW_WITH_JPEG)
+    find_package(JPEG REQUIRED)
+endif()
+if(LIBRAW_WITH_LCMS)
+    find_package(lcms REQUIRED CONFIG)
+endif()
+if(LIBRAW_WITH_JASPER)
+    find_package(Jasper REQUIRED)
+endif()
+
+add_library(raw ${libraw_LIB_SRCS})
+target_compile_features(raw PUBLIC cxx_std_11)
+target_include_directories(raw PUBLIC "${LIBRAW_SRC_DIR}")
+if(WIN32)
+    target_link_libraries(raw PUBLIC ws2_32)
+    if(BUILD_SHARED_LIBS)
+        target_compile_definitions(raw PUBLIC LIBRAW_BUILDLIB)
+    else()
+        target_compile_definitions(raw PUBLIC LIBRAW_NODLL)
+    endif()
+endif()
+if(MSVC)
+    target_compile_options(raw PUBLIC /wd4018 /wd4101 /wd4244 /wd4251 /wd4267 /wd4996)
+endif()
+if(LIBRAW_WITH_JPEG)
+    target_compile_definitions(raw PUBLIC USE_JPEG USE_JPEG8)
+    target_link_libraries(raw PUBLIC JPEG::JPEG)
 endif ()
-if (TARGET CONAN_PKG::lcms)
-    add_definitions(-DUSE_LCMS2)
+if (LIBRAW_WITH_LCMS)
+    target_compile_definitions(raw PUBLIC USE_LCMS2)
+    target_link_libraries(raw PUBLIC lcms::lcms)
 endif ()
-if (TARGET CONAN_PKG::jasper)
-    add_definitions(-DUSE_JASPER)
+if (LIBRAW_WITH_JASPER)
+    target_compile_definitions(raw PUBLIC USE_JASPER)
+    target_link_libraries(raw PUBLIC Jasper::Jasper)
 endif ()
 
-add_library(raw ${headers} ${sources})
-set_property(TARGET raw PROPERTY CXX_STANDARD 11)
-target_include_directories(raw PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/source_subfolder/")
-target_compile_options(raw PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/W0>)
-if (TARGET CONAN_PKG::libjpeg)
-    target_link_libraries(raw PUBLIC CONAN_PKG::libjpeg)
-endif ()
-if (TARGET CONAN_PKG::libjpeg-turbo)
-    target_link_libraries(raw PUBLIC CONAN_PKG::libjpeg-turbo)
-endif ()
-if (TARGET CONAN_PKG::lcms)
-    target_link_libraries(raw PUBLIC CONAN_PKG::lcms)
-endif ()
-if (TARGET CONAN_PKG::jasper)
-    target_link_libraries(raw PUBLIC CONAN_PKG::jasper)
-endif ()
+include(GNUInstallDirs)
+if(LIBRAW_BUILD_THREAD_SAFE)
+    add_library(raw_r ${libraw_LIB_SRCS})
+    target_link_libraries(raw_r INTERFACE raw)
+    target_compile_options(raw_r PRIVATE -pthread)
+    target_link_options(raw_r PRIVATE -pthread)
+    target_include_directories(raw_r PUBLIC "${LIBRAW_SRC_DIR}")
+    install(
+        TARGETS raw_r
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
 
-install(DIRECTORY "source_subfolder/libraw" DESTINATION include)
-install(TARGETS raw ARCHIVE DESTINATION lib RUNTIME DESTINATION bin LIBRARY DESTINATION lib)
+install(DIRECTORY "${LIBRAW_SRC_DIR}/libraw" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(
+    TARGETS raw
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

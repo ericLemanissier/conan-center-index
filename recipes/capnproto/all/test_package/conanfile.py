@@ -1,14 +1,27 @@
-from conans import ConanFile, CMake, tools
+from conan import ConanFile
+from conan.tools.build import can_run, cross_building
+from conan.tools.cmake import CMake, cmake_layout
+from conan.tools.env import VirtualBuildEnv, VirtualRunEnv
 import os
 
 
 class TestPackageConan(ConanFile):
     settings = "os", "arch", "compiler", "build_type"
-    generators = "cmake", "cmake_find_package_multi"
+    generators = "CMakeToolchain", "CMakeDeps"
+    test_type = "explicit"
 
-    def build_requirements(self):
-        if hasattr(self, "settings_build"):
-            self.build_requires(str(self.requires["capnproto"]))
+    def layout(self):
+        cmake_layout(self)
+
+    def requirements(self):
+        self.requires(self.tested_reference_str, run=True)
+
+    def generate(self):
+        VirtualRunEnv(self).generate()
+        if hasattr(self, "settings_build") and cross_building(self):
+            VirtualBuildEnv(self).generate()
+        else:
+            VirtualRunEnv(self).generate(scope="build")
 
     def build(self):
         cmake = CMake(self)
@@ -16,6 +29,8 @@ class TestPackageConan(ConanFile):
         cmake.build()
 
     def test(self):
-        if not tools.cross_building(self):
-            bin_path = os.path.join("bin", "addressbook")
-            self.run("{} write".format(bin_path), run_environment=True)
+        if can_run(self):
+            bin_path = os.path.join(self.cpp.build.bindir, "addressbook")
+            self.run(bin_path, env="conanrun")
+
+            self.run("capnp id")

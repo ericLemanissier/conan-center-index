@@ -4,6 +4,7 @@ from conan.tools.files import get, copy
 from conan.tools.build import check_min_cppstd
 from conan.tools.scm import Version
 from conan.tools.layout import basic_layout
+from conan.tools.microsoft import is_msvc
 import os
 
 required_conan_version = ">=1.51.1"
@@ -15,61 +16,53 @@ class GlazeConan(ConanFile):
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/stephenberry/glaze"
     topics = ("json", "memory", "header-only")
+    package_type = "header-library"
     settings = "os", "arch", "compiler", "build_type"
     no_copy_source = True
 
     @property
-    def _minimum_cpp_standard(self):
-        return 20
+    def _min_cppstd(self):
+        return "20" if Version(self.version) < "3.0.0" else "23"
 
     @property
     def _compilers_minimum_version(self):
         return {
-            "Visual Studio": "16",
-            "msvc": "192",
-            "gcc": "11",
-            "clang": "12",
-            "apple-clang": "13.1",
-        }
+            "20": {
+                "Visual Studio": "17",
+                "msvc": "193",
+                "gcc": "11" if Version(self.version) < "2.6.3" else "12",
+                "clang": "14",
+                "apple-clang": "13.1",
+            },
+            "23": {
+                "Visual Studio": "17",
+                "msvc": "193",
+                "gcc": "12",
+                "clang": "15",
+                "apple-clang": "14",
+            },
+        }.get(self._min_cppstd, {})
 
     def layout(self):
         basic_layout(self, src_folder="src")
-
-    def requirements(self):
-        self.requires("fmt/9.1.0")
-        self.requires("fast_float/3.8.1")
-        self.requires("frozen/1.1.1")
-        self.requires("nanorange/20200505")
-        if Version(self.version) >= "0.1.5":
-            self.requires("dragonbox/1.1.3")
 
     def package_id(self):
         self.info.clear()
 
     def validate(self):
-        if self.settings.get_safe("compiler.cppstd"):
-            check_min_cppstd(self, self._minimum_cpp_standard)
-
-        def loose_lt_semver(v1, v2):
-            lv1 = [int(v) for v in v1.split(".")]
-            lv2 = [int(v) for v in v2.split(".")]
-            min_length = min(len(lv1), len(lv2))
-            return lv1[:min_length] < lv2[:min_length]
-
+        if self.settings.compiler.get_safe("cppstd"):
+            check_min_cppstd(self, self._min_cppstd)
         minimum_version = self._compilers_minimum_version.get(str(self.settings.compiler), False)
-        if minimum_version and loose_lt_semver(str(self.settings.compiler.version), minimum_version):
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
             raise ConanInvalidConfiguration(
-                f"{self.name} {self.version} requires C++{self._minimum_cpp_standard}, which your compiler does not support.",
+                f"{self.ref} requires C++{self._min_cppstd}, which your compiler does not support."
             )
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version], destination=self.source_folder, strip_root=True)
-
-    def build(self):
-        pass
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def package(self):
-        copy(self, pattern="LICENSE.txt", dst=os.path.join(self.package_folder, "licenses"), src=self.source_folder)
+        copy(self, pattern="LICENSE*", dst=os.path.join(self.package_folder, "licenses"), src=self.source_folder)
         copy(
             self,
             pattern="*.hpp",
@@ -80,3 +73,5 @@ class GlazeConan(ConanFile):
     def package_info(self):
         self.cpp_info.bindirs = []
         self.cpp_info.libdirs = []
+        if is_msvc(self):
+            self.cpp_info.cxxflags.append("/Zc:preprocessor")

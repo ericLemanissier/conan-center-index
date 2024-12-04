@@ -2,24 +2,24 @@ from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
-from conan.tools.files import apply_conandata_patches, copy, get, replace_in_file, rmdir
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, replace_in_file, rmdir
 from conan.tools.microsoft import is_msvc
 from conan.tools.scm import Version
 import os
 import textwrap
 
-required_conan_version = ">=1.50.0"
+required_conan_version = ">=1.53.0"
 
 
 class DataFrameConan(ConanFile):
     name = "dataframe"
-    license = "BSD-3-Clause"
-    url = "https://github.com/conan-io/conan-center-index"
-    homepage = "https://github.com/hosseinmoein/DataFrame"
     description = (
         "C++ DataFrame for statistical, Financial, and ML analysis -- in modern C++ "
         "using native types, continuous memory storage, and no pointers are involved"
     )
+    license = "BSD-3-Clause"
+    url = "https://github.com/conan-io/conan-center-index"
+    homepage = "https://github.com/hosseinmoein/DataFrame"
     topics = (
         "dataframe",
         "data-science",
@@ -37,7 +37,7 @@ class DataFrameConan(ConanFile):
         "financial-engineering",
         "large-data",
     )
-
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -49,17 +49,42 @@ class DataFrameConan(ConanFile):
     }
 
     @property
+    def _min_cppstd(self):
+        if Version(self.version) < "2.1.0":
+            return "17"
+        elif Version(self.version) <= "2.2.0":
+            return "20"
+        else:
+            return "23"
+
+    @property
     def _minimum_compilers_version(self):
         return {
-            "Visual Studio": "15",
-            "gcc": "7",
-            "clang": "6",
-            "apple-clang": "10.0" if Version(self.version) >= "1.12.0" else "9.0",
-        }
+            "17": {
+                "Visual Studio": "15",
+                "msvc": "191",
+                "gcc": "7",
+                "clang": "6",
+                "apple-clang": "10.0",
+            },
+            "20": {
+                "Visual Studio": "16",
+                "msvc": "192",
+                "gcc": "11",
+                "clang": "12",
+                "apple-clang": "13",
+            },
+            "23": {
+                "Visual Studio": "17",
+                "msvc": "192",
+                "gcc": "13",
+                "clang": "15",
+                "apple-clang": "15",
+            },
+        }.get(self._min_cppstd, {})
 
     def export_sources(self):
-        for p in self.conan_data.get("patches", {}).get(self.version, []):
-            copy(self, p["patch_file"], self.recipe_folder, self.export_sources_folder)
+        export_conandata_patches(self)
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -67,59 +92,40 @@ class DataFrameConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
-
-    def validate(self):
-        if is_msvc(self) and self.info.options.shared and Version(self.version) < "1.20.0":
-            raise ConanInvalidConfiguration(
-                "dataframe {} doesn't support shared lib with Visual Studio".format(self.version)
-            )
-
-        if self.info.settings.compiler.cppstd:
-            check_min_cppstd(self, "17")
-
-        minimum_version = self._minimum_compilers_version.get(str(self.info.settings.compiler), False)
-        if minimum_version and Version(self.info.settings.compiler.version) < minimum_version:
-            raise ConanInvalidConfiguration(
-                "{} requires C++17, which your compiler does not support.".format(self.name)
-            )
+            self.options.rm_safe("fPIC")
 
     def layout(self):
         cmake_layout(self, src_folder="src")
 
+    def validate(self):
+        if self.settings.compiler.get_safe("cppstd"):
+            check_min_cppstd(self, self._min_cppstd)
+        minimum_version = self._minimum_compilers_version.get(str(self.settings.compiler), False)
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
+            raise ConanInvalidConfiguration(
+                f"{self.ref} requires C++{self._min_cppstd}, which your compiler does not support."
+            )
+
+        if Version(self.version) >= "2.2.0":
+            if (self.settings.compiler == "clang" and Version(self.settings.compiler.version) < "13.0.0" and \
+                self.settings.compiler.libcxx == "libc++"):
+                raise ConanInvalidConfiguration(f"{self.ref} doesn't support clang < 13.0.0 with libc++.")
+            if self.settings.compiler == "apple-clang" and Version(self.settings.compiler.version) < "14.0.0":
+                raise ConanInvalidConfiguration(f"{self.ref} doesn't support apple-clang < 14.0.0.")
+
+
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)
-        if Version(self.version) >= "1.20.0":
-            tc.variables["HMDF_TESTING"] = False
-            tc.variables["HMDF_EXAMPLES"] = False
-            tc.variables["HMDF_BENCHMARKS"] = False
-        elif Version(self.version) >= "1.14.0":
-            tc.variables["ENABLE_TESTING"] = False
+        tc.variables["HMDF_TESTING"] = False
+        tc.variables["HMDF_EXAMPLES"] = False
+        tc.variables["HMDF_BENCHMARKS"] = False
         tc.generate()
 
-    def _patch_sources(self):
-        apply_conandata_patches(self)
-        # Don't pollute RPATH
-        if Version(self.version) < "1.20.0":
-            replace_in_file(
-                self,
-                os.path.join(self.source_folder, "CMakeLists.txt"),
-                textwrap.dedent("""\
-                    include(AddInstallRPATHSupport)
-                    add_install_rpath_support(BIN_DIRS "${CMAKE_INSTALL_FULL_LIBDIR}"
-                                              LIB_DIRS "${CMAKE_INSTALL_FULL_BINDIR}"
-                                              INSTALL_NAME_DIR "${CMAKE_INSTALL_FULL_LIBDIR}"
-                                              USE_LINK_PATH)
-                """),
-                "",
-            )
-
     def build(self):
-        self._patch_sources()
+        apply_conandata_patches(self)
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
@@ -144,16 +150,12 @@ class DataFrameConan(ConanFile):
         self.cpp_info.set_property("pkg_config_name", "DataFrame")
         self.cpp_info.libs = ["DataFrame"]
         if self.settings.os in ["Linux", "FreeBSD"]:
-            self.cpp_info.system_libs.extend(["pthread", "rt"])
+            self.cpp_info.system_libs.extend(["pthread", "rt", "m"])
         if is_msvc(self):
             self.cpp_info.defines.append("_USE_MATH_DEFINES")
-            if Version(self.version) < "1.20.0" and not self.options.shared:
-                # weird but required in those versions of dataframe
-                self.cpp_info.defines.append("LIBRARY_EXPORTS")
-        if Version(self.version) >= "1.20.0" and self.options.shared:
+        if self.options.shared:
             self.cpp_info.defines.append("HMDF_SHARED")
 
         # TODO: to remove in conan v2 once cmake_find_package_* generators removed
         self.cpp_info.names["cmake_find_package"] = "DataFrame"
         self.cpp_info.names["cmake_find_package_multi"] = "DataFrame"
-        self.cpp_info.names["pkg_config"] = "DataFrame"

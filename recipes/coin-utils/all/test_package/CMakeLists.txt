@@ -1,12 +1,11 @@
-cmake_minimum_required(VERSION 3.1)
-project(test_package)
+cmake_minimum_required(VERSION 3.6)
+project(test_package LANGUAGES CXX)
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
-
-include(FindPkgConfig)
-
+find_package(PkgConfig REQUIRED)
 pkg_check_modules(CoinUtils REQUIRED IMPORTED_TARGET coinutils)
+add_executable(${PROJECT_NAME}_pkgconfig test_package.cpp)
+target_link_libraries(${PROJECT_NAME}_pkgconfig PRIVATE PkgConfig::CoinUtils)
 
-add_executable(${PROJECT_NAME} test_package.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE PkgConfig::CoinUtils)
+find_package(coin-utils REQUIRED CONFIG)
+add_executable(${PROJECT_NAME}_cmake test_package.cpp)
+target_link_libraries(${PROJECT_NAME}_cmake PRIVATE coin-utils::coin-utils)

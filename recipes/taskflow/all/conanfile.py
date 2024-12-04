@@ -19,32 +19,24 @@ class TaskflowConan(ConanFile):
     license = "MIT"
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/taskflow/taskflow"
-    topics = ("tasking", "parallelism")
+    topics = ("tasking", "parallelism", "header-only")
+    package_type = "header-library"
     settings = "os", "arch", "compiler", "build_type"
     short_paths = True
 
     @property
     def _min_cppstd(self):
-        if Version(self.version) >= "3.0.0":
-            return "17"
-        return "14"
+        return "17"
 
     @property
     def _compilers_minimum_version(self):
         return {
-            "17": {
-                "Visual Studio": "16",
-                "gcc": "7.3",
-                "clang": "6.0",
-                "apple-clang": "10.0",
-            },
-            "14": {
-                "Visual Studio": "15",
-                "gcc": "5",
-                "clang": "4.0",
-                "apple-clang": "8.0",
-            },
-        }[self._min_cppstd]
+            "Visual Studio": "16",
+            "msvc": "192",
+            "gcc": "7.3" if Version(self.version) < "3.7.0" else "8.4",
+            "clang": "6.0",
+            "apple-clang": "10.0",
+        }
 
     def export_sources(self):
         export_conandata_patches(self)
@@ -72,8 +64,7 @@ class TaskflowConan(ConanFile):
             )
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def build(self):
         apply_conandata_patches(self)
@@ -85,6 +76,9 @@ class TaskflowConan(ConanFile):
                   dst=os.path.join(self.package_folder, "include", "taskflow"))
 
     def package_info(self):
+        self.cpp_info.bindirs = []
+        self.cpp_info.libdirs = []
+
         self.cpp_info.set_property("cmake_file_name", "Taskflow")
         self.cpp_info.set_property("cmake_target_name", "Taskflow::Taskflow")
         if self.settings.os in ["Linux", "FreeBSD"]:

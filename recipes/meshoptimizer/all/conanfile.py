@@ -1,10 +1,11 @@
 from conan import ConanFile
+from conan.tools.build import stdcpp_library
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
 from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, replace_in_file, rm, rmdir
-from conans import tools as tools_legacy
+from conan.tools.scm import Version
 import os
 
-required_conan_version = ">=1.52.0"
+required_conan_version = ">=1.54.0"
 
 
 class MeshOptimizerConan(ConanFile):
@@ -15,6 +16,7 @@ class MeshOptimizerConan(ConanFile):
     url = "https://github.com/conan-io/conan-center-index"
     license = "MIT"
 
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -34,17 +36,13 @@ class MeshOptimizerConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            try:
-                del self.options.fPIC
-            except Exception:
-                pass
+            self.options.rm_safe("fPIC")
 
     def layout(self):
         cmake_layout(self, src_folder="src")
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
         tc = CMakeToolchain(self)
@@ -53,10 +51,11 @@ class MeshOptimizerConan(ConanFile):
 
     def _patch_sources(self):
         apply_conandata_patches(self)
-        # No warnings as errors
-        cmakelists = os.path.join(self.source_folder, "CMakeLists.txt")
-        replace_in_file(self, cmakelists, "add_compile_options(/W4 /WX)", "")
-        replace_in_file(self, cmakelists, "-Werror", "")
+        # No warnings as errors - now fine in 0.19 and up
+        if Version(self.version) < "0.19":
+            cmakelists = os.path.join(self.source_folder, "CMakeLists.txt")
+            replace_in_file(self, cmakelists, "add_compile_options(/W4 /WX)", "")
+            replace_in_file(self, cmakelists, "-Werror", "")
 
     def build(self):
         self._patch_sources()
@@ -76,7 +75,7 @@ class MeshOptimizerConan(ConanFile):
         self.cpp_info.set_property("cmake_target_name", "meshoptimizer::meshoptimizer")
         self.cpp_info.libs = ["meshoptimizer"]
         if not self.options.shared:
-            libcxx = tools_legacy.stdcpp_library(self)
+            libcxx = stdcpp_library(self)
             if libcxx:
                 self.cpp_info.system_libs.append(libcxx)
         if self.options.shared and self.settings.os == "Windows":

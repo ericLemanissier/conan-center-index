@@ -1,12 +1,12 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
-from conan.tools.files import apply_conandata_patches, copy, get, rmdir, save
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, rmdir, save
 from conan.tools.microsoft import is_msvc
 from conan.tools.scm import Version
 import os
 import textwrap
 
-required_conan_version = ">=1.50.0"
+required_conan_version = ">=1.54.0"
 
 
 class LZ4Conan(ConanFile):
@@ -15,8 +15,8 @@ class LZ4Conan(ConanFile):
     license = ("BSD-2-Clause", "BSD-3-Clause")
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/lz4/lz4"
-    topics = ("lz4", "compression")
-
+    topics = ("compression")
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -28,8 +28,7 @@ class LZ4Conan(ConanFile):
     }
 
     def export_sources(self):
-        for p in self.conan_data.get("patches", {}).get(self.version, []):
-            copy(self, p["patch_file"], self.recipe_folder, self.export_sources_folder)
+        export_conandata_patches(self)
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -37,15 +36,9 @@ class LZ4Conan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
-        try:
-            del self.settings.compiler.libcxx
-        except Exception:
-            pass
-        try:
-            del self.settings.compiler.cppstd
-        except Exception:
-            pass
+            self.options.rm_safe("fPIC")
+        self.settings.rm_safe("compiler.cppstd")
+        self.settings.rm_safe("compiler.libcxx")
 
     def layout(self):
         cmake_layout(self, src_folder="src")
@@ -57,7 +50,8 @@ class LZ4Conan(ConanFile):
     def generate(self):
         tc = CMakeToolchain(self)
         tc.variables["LZ4_BUILD_CLI"] = False
-        tc.variables["LZ4_BUILD_LEGACY_LZ4C"] = False
+        if Version(self.version) < "1.10.0":
+            tc.variables["LZ4_BUILD_LEGACY_LZ4C"] = False
         tc.variables["LZ4_BUNDLED_MODE"] = False
         tc.variables["LZ4_POSITION_INDEPENDENT_LIB"] = self.options.get_safe("fPIC", True)
         # Generate a relocatable shared lib on Macos
@@ -68,10 +62,7 @@ class LZ4Conan(ConanFile):
 
     @property
     def _cmakelists_folder(self):
-        if Version(self.version) < "1.9.3":
-            subfolder = os.path.join("contrib", "cmake_unofficial")
-        else:
-            subfolder = os.path.join("build", "cmake")
+        subfolder = os.path.join("build", "cmake")
         return os.path.join(self.source_folder, subfolder)
 
     def build(self):

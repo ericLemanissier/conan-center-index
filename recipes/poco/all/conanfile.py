@@ -4,36 +4,43 @@ from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches, get, replace_in_file, rm, rmdir
 from conan.tools.microsoft import is_msvc, is_msvc_static_runtime, msvc_runtime_flag, VCVars
 from conan.tools.scm import Version
+from conan.tools.build import check_min_cppstd
 from collections import namedtuple
 import os
 
-required_conan_version = ">=1.53.0"
+required_conan_version = ">=1.54.0"
 
 
 class PocoConan(ConanFile):
     name = "poco"
-    url = "https://github.com/conan-io/conan-center-index"
-    homepage = "https://pocoproject.org"
-    topics = ("building", "networking", "server", "mobile", "embedded")
-    license = "BSL-1.0"
     description = (
         "Modern, powerful open source C++ class libraries for building "
         "network- and internet-based applications that run on desktop, server, "
         "mobile and embedded systems."
     )
-
+    license = "BSL-1.0"
+    url = "https://github.com/conan-io/conan-center-index"
+    homepage = "https://pocoproject.org"
+    topics = ("building", "networking", "server", "mobile", "embedded")
+    package_type = "library"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
         "enable_fork": [True, False],
         "enable_active_record": [True, False, "deprecated"],
+        "log_debug": [True, False],
+        "with_sql_parser": [True, False],
+        "comp_foundation_sharedlibrary_debug_suffix": [True, False],
     }
     default_options = {
         "shared": False,
         "fPIC": True,
         "enable_fork": True,
         "enable_active_record": "deprecated",
+        "log_debug": False,
+        "with_sql_parser": True,
+        "comp_foundation_sharedlibrary_debug_suffix": True,
     }
 
     _PocoComponent = namedtuple("_PocoComponent", ("option", "default_option", "dependencies", "external_dependencies", "is_lib"))
@@ -76,6 +83,39 @@ class PocoConan(ConanFile):
             default_options[comp.option] = comp.default_option
     del comp
 
+    @property
+    def _min_cppstd(self):
+        # Since 1.10.0, poco officially requires C++14
+        # https://github.com/pocoproject/poco/releases/tag/poco-1.10.0-release
+        # But poco uses C++11 features only until 1.12.5
+        # https://github.com/pocoproject/poco/commit/886b76f4faa2007cc0c09dad81f8dcdee6fcb4ac
+        if Version(self.version) < "1.12.5":
+            return "11"
+        # Since 1.13.0, poco requires C++17
+        # https://github.com/pocoproject/poco/releases/tag/poco-1.13.0-release
+        if Version(self.version) < "1.13.0":
+            return "14"
+        return "17"
+
+    @property
+    def _compilers_minimum_version(self):
+        return {
+            "14": {
+                "gcc": "6",
+                "clang": "5",
+                "apple-clang": "10",
+                "Visual Studio": "15",
+                "msvc": "191",
+            },
+            "17": {
+                "gcc": "8",
+                "clang": "7",
+                "apple-clang": "12",
+                "Visual Studio": "16",
+                "msvc": "192",
+            },
+        }.get(self._min_cppstd, {})
+
     def export_sources(self):
         export_conandata_patches(self)
 
@@ -85,21 +125,16 @@ class PocoConan(ConanFile):
             del self.options.enable_fork
         else:
             del self.options.enable_netssl_win
-        if Version(self.version) < "1.9.0":
-            del self.options.enable_encodings
-        if Version(self.version) < "1.10.0":
-            del self.options.enable_data_mysql
-            del self.options.enable_data_postgresql
-            del self.options.enable_jwt
-        if Version(self.version) < "1.11.0":
-            del self.options.enable_activerecord
-            del self.options.enable_activerecord_compiler
         if Version(self.version) < "1.12.0":
             del self.options.enable_prometheus
+        if Version(self.version) < "1.13.0":
+            del self.options.with_sql_parser
+        if self.settings.build_type != "Debug":
+            del self.options.comp_foundation_sharedlibrary_debug_suffix
 
     def configure(self):
         if self.options.enable_active_record != "deprecated":
-            self.output.warn("enable_active_record option is deprecated, use 'enable_activerecord' instead")
+            self.output.warning("enable_active_record option is deprecated, use 'enable_activerecord' instead")
         if self.options.shared:
             self.options.rm_safe("fPIC")
         if not self.options.enable_xml:
@@ -119,33 +154,42 @@ class PocoConan(ConanFile):
         if Version(self.version) < "1.12.0":
             self.requires("pcre/8.45")
         else:
-            self.requires("pcre2/10.40")
-        self.requires("zlib/1.2.13")
+            self.requires("pcre2/10.42")
+        self.requires("zlib/[>=1.2.11 <2]", transitive_headers=True)
         if self.options.enable_xml:
-            self.requires("expat/2.5.0")
+            self.requires("expat/[>=2.6.2 <3]", transitive_headers=True)
         if self.options.enable_data_sqlite:
-            self.requires("sqlite3/3.39.4")
+            self.requires("sqlite3/3.45.0")
         if self.options.enable_apacheconnector:
-            self.requires("apr/1.7.0")
+            self.requires("apr/1.7.4")
             self.requires("apr-util/1.6.1")
         if self.options.enable_netssl or self.options.enable_crypto or \
            self.options.get_safe("enable_jwt"):
-            self.requires("openssl/1.1.1s")
+            self.requires("openssl/[>=1.1 <4]", transitive_headers=True)
         if self.options.enable_data_odbc and self.settings.os != "Windows":
             self.requires("odbc/2.3.11")
         if self.options.get_safe("enable_data_postgresql"):
-            self.requires("libpq/14.5")
+            self.requires("libpq/15.4")
         if self.options.get_safe("enable_data_mysql"):
-            self.requires("libmysqlclient/8.0.30")
+            self.requires("libmysqlclient/8.1.0")
 
     def package_id(self):
         del self.info.options.enable_active_record
+        del self.info.options.log_debug
 
     def validate(self):
-        if self.info.options.enable_apacheconnector:
+        if self.settings.compiler.cppstd:
+            check_min_cppstd(self, self._min_cppstd)
+        minimum_version = self._compilers_minimum_version.get(str(self.settings.compiler), False)
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
+            raise ConanInvalidConfiguration(
+                f"{self.ref} requires C++{self._min_cppstd}, which your compiler does not support."
+            )
+
+        if self.options.enable_apacheconnector:
             # FIXME: missing apache2 recipe + few issues
             raise ConanInvalidConfiguration("Apache connector not supported: https://github.com/pocoproject/poco/issues/1764")
-        if is_msvc(self) and self.info.options.shared and is_msvc_static_runtime(self):
+        if is_msvc(self) and self.options.shared and is_msvc_static_runtime(self):
             raise ConanInvalidConfiguration("Cannot build shared poco libraries with MT(d) runtime")
         for compopt in self._poco_component_tree.values():
             if not compopt.option:
@@ -156,29 +200,28 @@ class PocoConan(ConanFile):
                         continue
                     if not self.options.get_safe(self._poco_component_tree[compdep].option, False):
                         raise ConanInvalidConfiguration(f"option {compopt.option} requires also option {self._poco_component_tree[compdep].option}")
-        if self.info.options.enable_data_sqlite:
+        if self.options.enable_data_sqlite:
             if self.dependencies["sqlite3"].options.threadsafe == 0:
                 raise ConanInvalidConfiguration("sqlite3 must be built with threadsafe enabled")
-        if self.info.options.enable_netssl and self.options.get_safe("enable_netssl_win", False):
+        if self.options.enable_netssl and self.options.get_safe("enable_netssl_win", False):
             raise ConanInvalidConfiguration("Conflicting enable_netssl[_win] settings")
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version],
-            destination=self.source_folder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
-    def _dep_include_paths(self, dep):
-        dep_info = self.dependencies[dep]
-        return [os.path.join(dep_info.package_folder, dir).replace("\\", "/") for dir in dep_info.cpp_info.includedirs]
+    def _dep_include_paths(self, dep_name):
+        dep = self.dependencies[dep_name]
+        dep_cpp_info = dep.cpp_info.aggregated_components()
+        return [os.path.join(dep.package_folder, dir).replace("\\", "/") for dir in dep_cpp_info.includedirs]
 
-    def _dep_lib_paths(self, dep):
-        dep_info = self.dependencies[dep]
-        return [os.path.join(dep_info.package_folder, dir).replace("\\", "/") for dir in dep_info.cpp_info.libdirs]
+    def _dep_lib_paths(self, dep_name):
+        dep = self.dependencies[dep_name]
+        dep_cpp_info = dep.cpp_info.aggregated_components()
+        return [os.path.join(dep.package_folder, dir).replace("\\", "/") for dir in dep_cpp_info.libdirs]
 
     def generate(self):
         tc = CMakeToolchain(self)
         tc.variables["CMAKE_BUILD_TYPE"] = self.settings.build_type
-        if Version(self.version) < "1.10.1":
-            tc.variables["POCO_STATIC"] = not self.options.shared
         for comp in self._poco_component_tree.values():
             if comp.option:
                 tc.variables[comp.option.upper()] = self.options.get_safe(comp.option, False)
@@ -205,13 +248,15 @@ class PocoConan(ConanFile):
         # Disable fork
         if not self.options.get_safe("enable_fork", True):
             tc.variables["POCO_NO_FORK_EXEC"] = True
+        if self.options.get_safe("with_sql_parser", None) is False:
+            tc.variables["POCO_DATA_NO_SQL_PARSER"] = True
         # Disable automatic linking on MSVC
         tc.preprocessor_definitions["POCO_NO_AUTOMATIC_LIBS"] = "1"
         # Picked up from conan v1 CMake wrapper, don't know the rationale
-        if Version(self.version) >= "1.11.0":
-            tc.preprocessor_definitions["XML_DTD"] = "1"
-        # Honor BUILD_SHARED_LIBS from conan_toolchain (see https://github.com/conan-io/conan/issues/11840)
-        tc.cache_variables["CMAKE_POLICY_DEFAULT_CMP0077"] = "NEW"
+        tc.preprocessor_definitions["XML_DTD"] = "1"
+        # Disable SharedLibrary::suffix() including "d" as part of the platform-specific filename suffix
+        if not self.options.get_safe("comp_foundation_sharedlibrary_debug_suffix", True):
+            tc.preprocessor_definitions["POCO_NO_SHARED_LIBRARY_DEBUG_SUFFIX"] = "1"
         tc.generate()
 
         deps = CMakeDeps(self)
@@ -277,6 +322,14 @@ class PocoConan(ConanFile):
         rmdir(self, os.path.join(self.package_folder, "lib", "cmake"))
         rmdir(self, os.path.join(self.package_folder, "cmake"))
         rm(self, "*.pdb", os.path.join(self.package_folder, "bin"))
+        # INFO: missing headers https://github.com/pocoproject/poco/issues/4378
+        if self.options.get_safe("with_sql_parser", False):
+            copy(
+                self,
+                "*.h",
+                os.path.join(self.source_folder, "Data", "src"),
+                os.path.join(self.package_folder, "include"),
+            )
 
     def package_info(self):
         self.cpp_info.set_property("cmake_file_name", "Poco")
@@ -305,6 +358,9 @@ class PocoConan(ConanFile):
 
         if self.settings.os in ["Linux", "FreeBSD"]:
             self.cpp_info.components["poco_foundation"].system_libs.extend(["pthread", "dl", "rt"])
+
+        if self.options.log_debug:
+            self.cpp_info.components["poco_foundation"].defines.append("POCO_LOG_DEBUG")
 
         if is_msvc(self):
             self.cpp_info.components["poco_foundation"].defines.append("POCO_NO_AUTOMATIC_LIBS")

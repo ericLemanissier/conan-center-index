@@ -1,33 +1,47 @@
-from conans import CMake, ConanFile, tools
-import functools
+from conan import ConanFile
+from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
+from conan.tools.files import get, replace_in_file, apply_conandata_patches, copy, export_conandata_patches, rmdir
+
+from conan.tools.scm import Version
 import os
 
-required_conan_version = ">=1.33.0"
+required_conan_version = ">=1.53.0"
 
 
 class TreeSitterCConan(ConanFile):
     name = "tree-sitter-c"
     description = "C grammar for tree-sitter."
-    topics = ("parser", "grammar", "tree", "c", "ide")
+    license = "MIT"
     url = "https://github.com/conan-io/conan-center-index"
     homepage = "https://github.com/tree-sitter/tree-sitter-c"
-    license = "MIT"
+    topics = ("parser", "grammar", "tree", "c", "ide")
     settings = "os", "arch", "compiler", "build_type"
+    package_type = "library"
+
     options = {
-        "fPIC": [True, False],
         "shared": [True, False],
+        "fPIC": [True, False],
     }
     default_options = {
-        "fPIC": True,
         "shared": False,
+        "fPIC": True,
     }
 
-    generators = "cmake", "cmake_find_package_multi"
-    exports_sources = "CMakeLists.txt"
+    def layout(self):
+        cmake_layout(self, src_folder="src")
 
-    @property
-    def _source_subfolder(self):
-        return "source_subfolder"
+    def export_sources(self):
+        export_conandata_patches(self)
+        if Version(self.version) < "0.23.2":
+            copy(self, "CMakeLists.txt", src=self.recipe_folder, dst=os.path.join(self.export_sources_folder, "src"))
+
+    def generate(self):
+        tc = CMakeToolchain(self)
+        if Version(self.version) < "0.23.2":
+            tc.variables["TREE_SITTER_C_SRC_DIR"] = self.source_folder.replace("\\", "/")
+        tc.generate()
+        deps = CMakeDeps(self)
+        deps.generate()
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -35,39 +49,41 @@ class TreeSitterCConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
-        del self.settings.compiler.libcxx
-        del self.settings.compiler.cppstd
-
-    def requirements(self):
-        self.requires("tree-sitter/0.20.0")
+            self.options.rm_safe("fPIC")
+        self.settings.rm_safe("compiler.cppstd")
+        self.settings.rm_safe("compiler.libcxx")
 
     def source(self):
-        tools.get(**self.conan_data["sources"][self.version],
-                  destination=self._source_subfolder, strip_root=True)
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
+        apply_conandata_patches(self)
 
-    @functools.lru_cache(1)
-    def _configure_cmake(self):
-        cmake = CMake(self)
-        cmake.configure()
-        return cmake
+    def requirements(self):
+        self.requires("tree-sitter/0.24.3", transitive_headers=True, transitive_libs=True)
 
     def _patch_sources(self):
-        if not self.options.shared:
-            tools.replace_in_file(
-                os.path.join(self._source_subfolder, "src", "parser.c"),
+        if Version(self.version) < "0.23.2" and not self.options.shared:
+            replace_in_file(
+                self,
+                os.path.join(self.source_folder, "src", "parser.c"),
                 "__declspec(dllexport)", ""
             )
 
     def build(self):
         self._patch_sources()
-        cmake = self._configure_cmake()
+        cmake = CMake(self)
+        cmake.configure()
         cmake.build()
 
     def package(self):
-        self.copy("LICENSE", src=self._source_subfolder, dst="licenses")
-        cmake = self._configure_cmake()
+        copy(
+            self,
+            "LICENSE",
+            src=self.source_folder,
+            dst=os.path.join(self.package_folder, "licenses"),
+        )
+        cmake = CMake(self)
         cmake.install()
+        rmdir(self, os.path.join(self.package_folder, "share"))
 
     def package_info(self):
         self.cpp_info.libs = ["tree-sitter-c"]
