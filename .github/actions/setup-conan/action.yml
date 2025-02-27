@@ -1,0 +1,60 @@
+name: 'Setup Conan'
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: 'requirements.txt'
+    - run: pip3 install -r requirements.txt
+      working-directory: .
+      shell: bash
+
+    - if: ${{ runner.os == 'Windows' }}
+      run: echo "CONAN_HOME=${{ runner.temp }}\\.c2" >> $GITHUB_ENV
+      shell: bash
+
+    - run: conan profile detect --force
+      shell: bash
+
+    - run: conan remote remove "*"
+      shell: bash
+
+    - run: conan remote add community http://localhost:9300
+      shell: bash
+
+    - run: |
+        mkdir -p ${{ env.CONAN_SERVER_HOME }}
+        echo "[server]" > ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "jwt_secret: oZYHhkdgpdEyQtWkdQEvMoOl" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "jwt_expire_minutes: 120" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "ssl_enabled: False" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "port: 9300" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "public_port:" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "host_name: localhost" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "authorize_timeout: 1800" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "disk_storage_path: ./data" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "disk_authorize_timeout: 1800" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "updown_secret: humVxzLenbIJVNDjiRciSNmD" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "[write_permissions]" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "*/*@*/*: *" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "[read_permissions]" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "*/*@*/*: *" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "[users]" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+        echo "demo: demo" >> ${{ env.CONAN_SERVER_HOME }}/server.conf
+      shell: bash
+    
+    - uses: actions/checkout@v4
+      with:
+        ref: conan_remote
+        path: ${{ env.CONAN_SERVER_HOME }}/data/
+        lfs: true
+
+    - run: |
+        conan_server &
+        conan remote auth community
+      env:
+        CONAN_LOGIN_USERNAME_COMMUNITY: demo
+        CONAN_PASSWORD_COMMUNITY: demo
+      shell: bash
