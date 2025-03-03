@@ -1,0 +1,5 @@
+1741021626
+conandata.yml: 7d30ce4030dd83749badb32237bd131d
+conanfile.py: 01438040394b477d740d8c84f58cf682
+export_source/patches/1.2.x/0001-fix-cmake.patch: b0ba488e1a8c3e391ef314cce9d84ca7
+export_source/patches/1.2.x/0003-gzguts-fix-widechar-condition.patch: 7a08a1b0a18d0026c42bcf40f68df397
