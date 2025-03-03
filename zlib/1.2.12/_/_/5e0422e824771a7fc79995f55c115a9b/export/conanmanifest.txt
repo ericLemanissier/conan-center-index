@@ -1,0 +1,6 @@
+1741021604
+conandata.yml: 7d30ce4030dd83749badb32237bd131d
+conanfile.py: 01438040394b477d740d8c84f58cf682
+export_source/patches/1.2.x/0001-fix-cmake.patch: b0ba488e1a8c3e391ef314cce9d84ca7
+export_source/patches/1.2.x/0004-Fix-a-bug-when-getting-a-gzip-header-extra-field-wit.patch: 4ef750da88b3426f84fd885707b30f73
+export_source/patches/1.2.x/0005-Fix-extra-field-processing-bug-that-dereferences-NUL.patch: 90a70c45c056940786676cf0780c0d98
