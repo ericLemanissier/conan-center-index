@@ -1,0 +1,66 @@
+name: Push CI
+
+on:
+  push:
+    
+jobs:
+  find_modified_refs:
+    runs-on: ubuntu-latest
+    outputs:
+      references: ${{ steps.find_modified_refs.outputs.references }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v6
+        id: find_modified_refs
+        with:
+          script: |   
+            files = await github.rest.repos.compareCommitsWithBasehead({
+              owner: context.issue.owner,
+              repo: context.issue.repo,
+              basehead: `${context.payload.before}...${context.payload.after}`
+              });
+            
+            recipes = new Set()
+            for (file of files.files) {
+              filepath = file.filename.split("/")
+              if (filepath.length < 4){
+                core.debug(`ignore file path too short : ${filepath}`)
+                continue
+              }
+              if (filepath[0] != "recipes") {
+                core.debug(`ignore file path not in recipes : ${filepath}`)
+                continue
+              }
+              core.debug(`adding ${filepath[1]}/${filepath[2]}`)
+              recipes.add(`${filepath[1]}/${filepath[2]}`)
+            }
+            references = []
+            for(recipe of recipes) {
+              [package, folder] = recipe.split("/")
+              let myOutput = '';
+              await exec.exec('yq', [`.versions | with_entries(select(.value.folder == "${folder}")) | keys`, `recipes/${package}/config.yml`, "--output-format=json"], {
+              listeners: {
+                stdout: (data) => {
+                  myOutput += data.toString();
+                },
+              }});
+              core.debug(`yq on ${package} ${folder} returned ${myOutput}`)
+              versions = JSON.parse(myOutput)
+              for(version of versions)
+                references.push({package,version,folder})
+            }
+            core.debug(`found references ${references}`)
+            core.setOutput('references', references);
+
+  build_refs:
+    needs: find_modified_refs
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.find_modified_refs.outputs.references) }}
+    uses: ./.github/workflows/build_single_ref.yml
+    with:
+      package: ${{ matrix.package }}
+      version: ${{ matrix.version }}
+      folder: ${{ matrix.folder }}
+          
